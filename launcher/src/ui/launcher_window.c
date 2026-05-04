@@ -85,7 +85,7 @@ on_window_draw (GtkWidget *widget, cairo_t *cr, gpointer user_data)
     gtk_widget_get_allocation (widget, &alloc);
 
     cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
-    cairo_set_source_rgba (cr, 0.0, 0.0, 0.0, 0.0);
+    cairo_set_source_rgba (cr, 0.0, 0.0, 0.0, 0.300);
     cairo_paint (cr);
     cairo_set_operator (cr, CAIRO_OPERATOR_OVER);
 
@@ -330,6 +330,9 @@ venom_launcher_window_init (VenomLauncherWindow *self)
 
     g_signal_connect (GTK_WIDGET (self), "scroll-event",
                       G_CALLBACK (on_scroll), NULL);
+
+    g_signal_connect (GTK_WIDGET (self), "draw",
+                      G_CALLBACK (on_window_draw), NULL);
 
 }
 

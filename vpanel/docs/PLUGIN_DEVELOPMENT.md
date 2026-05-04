@@ -1,235 +1,249 @@
 # دليل المطورين: إنشاء إضافات لشريط البانل (vpanel)
 
-يوفر **Venom Panel** نظام إضافات ديناميكية مبني على مكتبات مشتركة (`.so`) وملف إعدادات مرئي يتحكم بترتيب وحجم كل عنصر في البانل.
+يوفر **Venom Panel** نظام إضافات ديناميكية مبني على مكتبات مشتركة (`.so`) وملف إعدادات مرئي يتحكم بترتيب وشكل كل عنصر في البانل.
 
 ---
 
 ## 0. نظام تخطيط البانل (`panel.conf`)
 
-يقرأ `vpanel` ملف الإعدادات `~/.config/venom/panel.conf` عند كل تشغيل. إذا لم يكن موجوداً، يُنشئه تلقائياً بالتخطيط الافتراضي.
+يقرأ `vpanel` ملف `~/.config/venom/panel.conf` عند كل تشغيل أو عند استقبال إشارة `SIGUSR1` (live reload).
 
 ### أنواع العناصر
 
 | النوع (`type`) | الوظيفة |
 |---|---|
 | `plugin` | إضافة خارجية `.so` من `~/.config/venom/panel-plugins/` |
-| `builtin` | عنصر مدمج (انظر الجدول أدناه) |
-| `spacer` | مسافة شفافة تمتد وتملأ الفراغ المتبقي |
-| `separator` | خط فاصل عمودي رفيع |
+| `builtin` | عنصر مدمج |
+| `spacer` | مسافة شفافة تمتد |
+| `separator` | خط فاصل عمودي |
 
 ### العناصر المدمجة (`type=builtin`)
 
-| الاسم (`name`) | الوصف |
+| الاسم | الوصف |
 |---|---|
-| `tray` | System Tray (SNI Icons) + زر إيقاف التسجيل |
-| `power` | بروفايل الطاقة + قائمة الإجراءات |
-| `system-icons` | أيقونات WiFi / بطارية / صوت |
+| `tray` | System Tray (SNI) |
+| `power` | بروفايل الطاقة |
+| `system-icons` | WiFi / بطارية / صوت |
 | `clock` | الساعة |
-| `control-center` | زر فتح مركز التحكم |
+| `control-center` | مركز التحكم |
+| `workspaces` | أزرار المساحات |
+| `volume`, `mic`, `wifi`, `bluetooth` | مؤشرات منفصلة |
 
-### مثال كامل على `panel.conf`
+### الخصائص البصرية per-plugin (جديد في v3)
+
+يمكنك إضافة خصائص بصرية مخصصة لأي بلغن مباشرةً في `panel.conf`:
 
 ```ini
-# التخطيط الافتراضي — عدّل وأعد تشغيل البانل لتطبيق التغييرات
-# الترتيب من الأعلى إلى الأسفل = من اليسار إلى اليمين
-
 [item]
 type=plugin
-file=launcher.so
+file=sys-monitor.so
 expand=false
 padding=4
 
-[item]
-type=spacer
-expand=true
-padding=0
+# ── خلفية ──────────────────────────────────
+bg_color=#1a1a2e        # لون خلفية الحاوية (#rrggbb أو #rrggbbaa)
+bg_alpha=0.90           # شفافية إضافية [0.0 – 1.0]
+bg_gradient_end=#16213e # إذا ذُكر يصبح التدرج من bg_color إلى هذا اللون
 
-[item]
-type=builtin
-name=tray
-expand=false
-padding=4
-
-[item]
-type=separator
-
-[item]
-type=builtin
-name=power
-expand=false
-padding=2
-
-[item]
-type=builtin
-name=clock
-expand=false
-padding=4
-
-[item]
-type=separator
-
-[item]
-type=builtin
-name=control-center
-expand=false
-padding=2
+# ── حدود ──────────────────────────────────
+border_color=#3d5af1    # لون الحدود
+border_width=1          # سُمك الحدود بالبكسل (0 = بلا)
+border_radius=8         # تقريب الزوايا بالبكسل
 ```
 
-> **ملاحظة:** `expand=true` على عنصر `spacer` يجعله يدفع كل ما بعده نحو اليمين، مثل ما يفعله الـ Separator الموسّع في XFCE.
+> **ملاحظة:** قيم `panel.conf` تتغلب دائماً على القيم الافتراضية التي يعرفها البلغن نفسه في `VenomPluginVisuals`.
 
----
+### إعدادات مخصصة للبلغن (Extra Config Keys)
 
+أي مفتاح لا يُعرَّف أعلاه يُرسَل مباشرةً للبلغن عبر `on_config_changed()`:
+
+```ini
+[item]
+type=plugin
+file=my-plugin.so
+refresh_ms=500
+show_labels=true
+```
 
 ---
 
 ## 1. الواجهة البرمجية (API)
 
-يجب تضمين الملف `vpanel-plugin-api.h` في مشروعك:
+### API v3 (الموصى به — الإصدار الحالي)
 
 ```c
 #include <gtk/gtk.h>
 #include "vpanel-plugin-api.h"
-```
 
-### هيكل الإضافة (`VenomPanelPluginAPI` / `VenomPanelPluginAPIv2`)
-يتم تحديد الترتيب بالكامل عبر الإعدادات، لكن الإضافة تستطيع تمرير **تلميحات** (Hints) للبانل عن شكلها المفضل.
+VenomPanelPluginAPIv3* venom_panel_plugin_init_v3(void) {
+    static VenomPanelPluginAPIv3 api = {
+        .api_version  = VENOM_PANEL_PLUGIN_API_VERSION,  /* 3 */
+        .struct_size  = sizeof(VenomPanelPluginAPIv3),
 
-> **مهم:** يُفضّل استخدام API v2 عبر تصدير الدالة `venom_panel_plugin_init_v2` لأنها تضيف **تحقق من نسخة الـ ABI** وخيار `destroy_widget` لتنظيف المؤقتات/الموارد عند إعادة تحميل البانل.
+        /* الهوية */
+        .name         = "My Plugin",
+        .description  = "Does something cool.",
+        .author       = "You",
+        .version      = "1.0.0",
+        .icon_name    = "application-x-executable",
 
-```c
-typedef struct {
-    const char *name;          /* اسم الإضافة                             */
-    const char *description;   /* وصف مختصر                              */
-    const char *author;        /* اسم المطور                              */
-    VenomPluginZone zone;      /* تلميح: يسار/وسط/يمين                   */
-    int priority;              /* تلميح: أولوية الترتيب ضمن المنطقة      */
-    gboolean    expand;        /* هل تتمدد الإضافة لملء الفراغ؟ (Hint)    */
-    int         padding;       /* مسافة الحواف المفضلة بالبكسل (Hint)    */
-    GtkWidget* (*create_widget)(void); /* دالة بناء الواجهة                  */
-} VenomPanelPluginAPI;
-```
+        /* تلميحات التخطيط */
+        .zone         = VENOM_PLUGIN_ZONE_LEFT,
+        .expand       = FALSE,
+        .padding      = 4,
+        .min_width    = 0,
+        .max_width    = -1,
 
-**API v2 (الموصى به):**
+        /* مظهر افتراضي (يمكن تخطيه من panel.conf) */
+        .visuals = {
+            .bg_type       = VENOM_PLUGIN_BG_SOLID,
+            .bg_r = 0.1,  .bg_g = 0.1,  .bg_b = 0.18, .bg_a = 0.85,
+            .border_enabled = TRUE,
+            .border_r = 0.24, .border_g = 0.35, .border_b = 0.95,
+            .border_a = 1.0,  .border_width = 1,  .border_radius = 6,
+        },
 
-```c
-typedef struct {
-    uint32_t api_version;      /* VENOM_PANEL_PLUGIN_API_VERSION */
-    size_t   struct_size;      /* sizeof(VenomPanelPluginAPIv2)  */
-    /* نفس الحقول أعلاه... */
-    GtkWidget* (*create_widget)(void);
-    void (*destroy_widget)(GtkWidget *widget); /* اختياري */
-} VenomPanelPluginAPIv2;
-```
+        /* سلوك */
+        .singleton    = FALSE,
+        .watchdog_ms  = 3000,   /* يُلغى البلغن إذا لم تكتمل create_widget في 3 ث */
 
----
+        /* دوال الحياة */
+        .create_widget  = my_create_widget,
+        .destroy_widget = my_destroy_widget,   /* NULL مسموح */
 
-## 2. كتابة إضافة من الصفر
-
-**مثال: إضافة تعرض اسم المستخدم (`my-username.c`)**
-
-```c
-#include <gtk/gtk.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "vpanel-plugin-api.h"
-
-static GtkWidget* create_username_widget(void) {
-    /* الحصول على اسم المستخدم الحالي */
-    const char *user = g_get_user_name();
-    char label_text[64];
-    snprintf(label_text, sizeof(label_text), "👤 %s", user ? user : "user");
-    
-    GtkWidget *label = gtk_label_new(label_text);
-    
-    /* تنسيق CSS */
-    GtkCssProvider *css = gtk_css_provider_new();
-    gtk_css_provider_load_from_data(css,
-        "label { color: #ecf0f1; font-weight: bold; padding: 0 8px; }", -1, NULL);
-    gtk_style_context_add_provider(
-        gtk_widget_get_style_context(label),
-        GTK_STYLE_PROVIDER(css), 800);
-    g_object_unref(css);
-    
-    gtk_widget_show_all(label);
-    return label;
-}
-
-/* الدالة الأساسية (v1) — مدعومة للتوافق */
-VenomPanelPluginAPI* venom_panel_plugin_init(void) {
-    static VenomPanelPluginAPI api;
-    api.name          = "Username Display";
-    api.description   = "Shows the current user name.";
-    api.author        = "You";
-    api.expand        = FALSE;    /* لا تتمدد افتراضياً */
-    api.padding       = 4;        /* 4 بكسل حواف */
-    api.create_widget = create_username_widget;
+        /* قناة الإعدادات */
+        .on_config_changed = my_on_config_changed,
+        .get_config_schema = my_get_config_schema,
+    };
     return &api;
 }
+```
 
-/* الدالة الموصى بها (v2) */
+#### تلخيص الحقول الجديدة في v3
+
+| الحقل | النوع | الوصف |
+|---|---|---|
+| `version` | `const char*` | نسخة البلغن نفسه |
+| `icon_name` | `const char*` | أيقونة الثيم تظهر في نافذة الإعدادات |
+| `min_width` / `max_width` | `int` | قيود عرض الحاوية |
+| `visuals` | `VenomPluginVisuals` | مظهر افتراضي (خلفية، حدود، ظل) |
+| `singleton` | `gboolean` | لا يُحمَّل إلا نسخة واحدة |
+| `watchdog_ms` | `guint` | timeout لـ `create_widget()` |
+| `on_config_changed` | دالة | تُستدعى عند تغيير مفتاح إعداد |
+| `get_config_schema` | دالة | قائمة الإعدادات المتاحة |
+
+### VenomPluginVisuals — أنواع الخلفية
+
+```c
+typedef enum {
+    VENOM_PLUGIN_BG_INHERIT      = 0,  /* مثل باقي البانل (الافتراضي) */
+    VENOM_PLUGIN_BG_SOLID        = 1,  /* لون صلب */
+    VENOM_PLUGIN_BG_TRANSPARENT  = 2,  /* شفاف تماماً */
+    VENOM_PLUGIN_BG_GRADIENT     = 3,  /* تدرج أفقي */
+} VenomPluginBackground;
+```
+
+**ماكرو مختصر:**
+```c
+/* خلفية صلبة دفعة واحدة */
+.visuals = VENOM_VISUALS_SOLID(0.1, 0.1, 0.18, 0.9),
+
+/* تدرج */
+.visuals = VENOM_VISUALS_GRADIENT(0.1,0.1,0.18,1.0,  0.05,0.05,0.12,1.0),
+```
+
+### قناة الإعدادات
+
+```c
+/* يُستدعى عند تحميل البلغن وعند كل تغيير في panel.conf */
+static void my_on_config_changed(GtkWidget *widget,
+                                  const char *key,
+                                  const char *value)
+{
+    if (g_strcmp0(key, "refresh_ms") == 0) {
+        int ms = atoi(value);
+        /* تطبيق الإعداد على الـ widget */
+    }
+}
+
+/* البانل يستدعي هذه مرة واحدة لعرض الإعدادات في نافذة الإعدادات */
+static void my_get_config_schema(const char ***keys, const char ***defaults)
+{
+    static const char *k[] = { "refresh_ms", "show_labels", NULL };
+    static const char *d[] = { "1000",       "true",        NULL };
+    *keys     = k;
+    *defaults = d;
+}
+```
+
+### API v2 (مدعوم للتوافق الخلفي)
+
+```c
 VenomPanelPluginAPIv2* venom_panel_plugin_init_v2(void) {
-    static VenomPanelPluginAPIv2 api;
-    api.api_version   = VENOM_PANEL_PLUGIN_API_VERSION;
-    api.struct_size   = sizeof(VenomPanelPluginAPIv2);
-    api.name          = "Username Display";
-    api.description   = "Shows the current user name.";
-    api.author        = "You";
-    api.zone          = VENOM_PLUGIN_ZONE_LEFT;
-    api.priority      = 0;
-    api.expand        = FALSE;
-    api.padding       = 4;
-    api.create_widget = create_username_widget;
-    api.destroy_widget = NULL; /* ضعها إذا لديك مؤقتات/موارد للتنظيف */
+    static VenomPanelPluginAPIv2 api = {
+        .api_version    = VENOM_PANEL_PLUGIN_API_VERSION_V2,   /* 2 */
+        .struct_size    = sizeof(VenomPanelPluginAPIv2),
+        .name           = "My Plugin",
+        .create_widget  = my_create_widget,
+        .destroy_widget = my_destroy_widget,
+    };
     return &api;
 }
 ```
 
-> **حماية البانل (Graceful Fallback):** إذا أرجعت دالة `create_widget` قيمة `NULL` أو حدث خطأ أثناء تحميل مكتبتك (`.so`)، **لن ينهار البانل**. بدلاً من ذلك، سيقوم البانل بوضع أيقونة تحذير حمراء ⚠️ مكان إضافتك ليخبر المستخدم بوجود مشكلة، ويستمر البانل في عرض باقي العناصر بشكل طبيعي.
+---
+
+## 2. نظام العزل (Plugin Isolation)
+
+### كيف يعمل
+
+```
+vpanel (process)
+├── GtkSocket [slot 0] ←── vpanel-plugin-host sys-monitor.so  (PID xxxx)
+│                              └── GtkPlug → widget الحقيقي
+├── GtkSocket [slot 1] ←── vpanel-plugin-host tasklist.so     (PID yyyy)
+└── ...
+```
+
+- كل بلغن يعمل في **عملية فرعية مستقلة** (`vpanel-plugin-host`).
+- إذا انهار البلغن: البانل يكتشف ذلك عبر `SIGCHLD`، يعرض أيقونة تحذير ⚠️، ويُعيد إطلاق البلغن تلقائياً بعد 2.5 ثانية.
+- بعد **5 محاولات فاشلة**: يتوقف عن المحاولة ويعرض رسالة "Plugin Disabled".
+- **على Wayland**: تشغيل داخل نفس العملية مع watchdog timer (لا يدعم GtkSocket).
+
+### الحماية ضد التجميد
+
+إذا عرّف البلغن `watchdog_ms > 0`، يُعطي البانل إنذاراً بـ `SIGALRM`؛ فإذا لم تعود `create_widget()` في الوقت المحدد يُعامَل البلغن كمعطوب.
 
 ---
 
-## 3. التجميع (Compiling)
+## 3. التجميع والتثبيت
 
-### يدوياً:
+### تجميع بلغن
+
 ```bash
-gcc -shared -fPIC -o my-username.so my-username.c \
+gcc -shared -fPIC -o my-plugin.so my-plugin.c \
     $(pkg-config --cflags --libs gtk+-3.0) \
     -I/path/to/vpanel/include
 ```
 
-### داخل مجلد مصدر المشروع:
-ضع ملفك في `src/panel-plugins/` وشغّل:
+### داخل المشروع
+
 ```bash
+# ضع my-plugin.c في src/panel-plugins/ ثم:
 make panel-plugins
 ```
-سيقوم `Makefile` تلقائياً بتجميع وتثبيت جميع الإضافات في المجلد الصحيح.
+
+### مسار التثبيت
+
+```
+~/.config/venom/panel-plugins/my-plugin.so
+```
 
 ---
 
-## 4. مسار التثبيت
+## 4. نصائح متقدمة
 
-ضع ملف `.so` في:
-```
-~/.config/venom/panel-plugins/
-```
-أي: `/home/YOUR_USERNAME/.config/venom/panel-plugins/`
-
-سيقرأ `vpanel` هذا المجلد **تلقائياً** عند كل عملية تشغيل.
-
-> **ملاحظة أمنية:** قيمة `file=` داخل `panel.conf` يجب أن تكون **اسم ملف فقط** (basename) وتنتهي بـ `.so` (مثل `launcher.so`). لن يتم قبول مسارات تحتوي `/` أو `..` أو روابط رمزية (symlinks).
-
----
-
-## 5. إدارة البانل (Edit Mode) وتحديث الواجهة
-
-على عكس الأنظمة القديمة، **لم تعد بحاجة لكتابة الكود لتغيير ترتيب العناصر.** البانل يوفر الآن وضع تعديل مرئي (Edit Mode) متطور:
-
-1. **إعدادات البانل:** انقر بزر الماوس الأيمن على أي مساحة فارغة في البانل واختَر **"Panel Preferences..."**.
-2. **الترتيب:** ستظهر لك نافذة يمكنك منها نقل إضافتك (`username.so`) للأعلى أو الأسفل وتغيير مكانها الفعلي على الشاشة.
-3. **التحديث المباشر (Live Reload):** بمجرد أن تحفظ التعديلات في واجهة الإعدادات، سيقوم `vpanel-settings` بإرسال إشارة للبانل، فيقوم بإعادة ترتيب العناصر فوراً أمام عينيك دون إطفاء البرنامج.
-
-## 6. نصائح متقدمة
-
-- **التحديثات الدورية:** استخدم `g_timeout_add()` داخل `create_widget` لتحديث واجهة إضافتك في الخلفية (مثل تغيير الوقت أو البيانات المباشرة).
-- **التلميحات ضد الإعدادات:** القيم المُرجعة في `api.expand` و `api.padding` يمكن دائماً تخطيها وكسرها من قِبل المستخدم عبر `panel.conf` إذا رغب في ذلك.
-- **مثال حي:** راجع الكود المصدري في `src/panel-plugins/launcher.c` لتوضيح كيفية ربط الأزرار وتشغيل البرامج كإضافة خارجية.
+- **التحديثات الدورية:** `g_timeout_add()` داخل `create_widget()`.
+- **تنظيف المؤقتات:** استخدم `destroy_widget` دائماً إذا سجّلت `g_timeout_add` أو `g_signal_connect`.
+- **Singleton:** إذا كان بلغنك يدير موردًا عالميًا (Bluetooth، Audio...) اضبط `.singleton = TRUE`.
+- **Config Live:** `on_config_changed` يُستدعى مباشرةً عند SIGUSR1 reload — حافظ عليه سريعاً.

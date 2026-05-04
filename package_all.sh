@@ -75,7 +75,7 @@ Version: 0.1.0
 Section: utils
 Priority: optional
 Architecture: amd64
-Maintainer: Aether Developer <dev@aether.org>
+Maintainer: vaxp Developer <dev@vaxp.org>
 Description: AetherShell component - ${proj}
 EOF
 

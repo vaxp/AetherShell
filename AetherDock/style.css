@@ -9,7 +9,7 @@ window {
 /* 1. الدوك المصغر (Slim Dock) - تم تقليل الأحجام */
 /* ------------------------------------------------ */
 #dock-box {
-    background-color: rgba(0, 0, 0, 0.123);
+    background-color: rgba(0, 0, 0, 0.300);
     border: 1px solid rgba(24, 24, 24, 0.185);
 
     /* تقليل الانحناء ليناسب الحجم الصغير */
@@ -24,7 +24,7 @@ window {
 
 /* أزرار الدوك */
 button {
-    background: transparent;
+    background: rgba(0, 0, 0, 0.300);
     border: none;
 
     /* تقليل حشوة الزر نفسه ليصغر الحجم الكلي */

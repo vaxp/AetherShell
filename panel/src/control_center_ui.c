@@ -20,6 +20,106 @@ static GtkWidget *bt_blue = NULL;   /* bluetooth button in CC grid */
 static GtkWidget *bt_popover  = NULL;
 static GtkWidget *bt_listbox  = NULL;
 
+static void spawn_shell_action(const char *command)
+{
+    GError *error = NULL;
+    gchar *quoted = g_shell_quote(command);
+    gchar *line = g_strdup_printf("sh -c %s", quoted);
+
+    if (!g_spawn_command_line_async(line, &error)) {
+        g_warning("Failed to run action: %s", error ? error->message : "unknown error");
+        if (error) g_error_free(error);
+    }
+
+    g_free(line);
+    g_free(quoted);
+}
+
+static gchar *find_recorder_binary(void)
+{
+    gchar *exe = g_file_read_link("/proc/self/exe", NULL);
+    if (exe) {
+        gchar *dir = g_path_get_dirname(exe);
+        gchar *candidate = g_build_filename(dir, "..", "build", "aether-recorder", NULL);
+        if (g_file_test(candidate, G_FILE_TEST_IS_EXECUTABLE)) {
+            g_free(dir);
+            g_free(exe);
+            return candidate;
+        }
+        g_free(candidate);
+
+        candidate = g_build_filename(dir, "build", "aether-recorder", NULL);
+        if (g_file_test(candidate, G_FILE_TEST_IS_EXECUTABLE)) {
+            g_free(dir);
+            g_free(exe);
+            return candidate;
+        }
+        g_free(candidate);
+
+        g_free(dir);
+        g_free(exe);
+    }
+
+    return g_find_program_in_path("aether-recorder");
+}
+
+static void on_screenshot_clicked(GtkButton *btn, gpointer user_data)
+{
+    (void)btn;
+    (void)user_data;
+    spawn_shell_action("dir=\"${XDG_PICTURES_DIR:-$HOME/Pictures}\"; "
+                       "mkdir -p \"$dir\"; "
+                       "grim \"$dir/Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png\"");
+}
+
+static void on_select_screenshot_clicked(GtkButton *btn, gpointer user_data)
+{
+    (void)btn;
+    (void)user_data;
+    spawn_shell_action("geometry=$(slurp) || exit 0; "
+                       "[ -n \"$geometry\" ] || exit 0; "
+                       "dir=\"${XDG_PICTURES_DIR:-$HOME/Pictures}\"; "
+                       "mkdir -p \"$dir\"; "
+                       "grim -g \"$geometry\" \"$dir/Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png\"");
+}
+
+static void on_record_clicked(GtkButton *btn, gpointer user_data)
+{
+    (void)btn;
+    (void)user_data;
+    gchar *recorder = find_recorder_binary();
+    if (!recorder) {
+        g_warning("aether-recorder was not found");
+        return;
+    }
+
+    gchar *quoted = g_shell_quote(recorder);
+    spawn_shell_action(quoted);
+    g_free(quoted);
+    g_free(recorder);
+}
+
+static void on_select_record_clicked(GtkButton *btn, gpointer user_data)
+{
+    (void)btn;
+    (void)user_data;
+    gchar *recorder = find_recorder_binary();
+    if (!recorder) {
+        g_warning("aether-recorder was not found");
+        return;
+    }
+
+    gchar *quoted = g_shell_quote(recorder);
+    gchar *command = g_strdup_printf("geometry=$(slurp) || exit 0; "
+                                     "[ -n \"$geometry\" ] || exit 0; "
+                                     "%s -g \"$geometry\"",
+                                     quoted);
+    spawn_shell_action(command);
+    g_free(command);
+    g_free(quoted);
+    g_free(recorder);
+}
+
 static void on_bt_state_changed_cc(gboolean powered, gpointer user_data)
 {
     (void)user_data;
@@ -818,7 +918,7 @@ static GtkWidget* create_controls_page() {
     }
     gtk_box_pack_start(GTK_BOX(card_perf), box_perf_btns, FALSE, FALSE, 0);
 
-    // Quick Actions Card: Dark Mode | Settings | Screenshot
+    // Quick Actions Card: Screenshot | Select Screenshot | Record | Select Record
     GtkWidget *card_actions = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(card_actions), "card");
     gtk_widget_set_name(card_actions, "card-actions");
@@ -832,53 +932,66 @@ static GtkWidget* create_controls_page() {
     gtk_widget_set_margin_top(inner_actions_box, 2);
     gtk_widget_set_margin_bottom(inner_actions_box, 0);
 
-
-
-    // Dark Mode toggle button
-    GtkWidget *btn_dark = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(btn_dark), GTK_RELIEF_NONE);
-    gtk_style_context_add_class(gtk_widget_get_style_context(btn_dark), "perf-btn-container");
-    gtk_widget_set_halign(btn_dark, GTK_ALIGN_CENTER);
-    gtk_widget_set_valign(btn_dark, GTK_ALIGN_CENTER);
-
-    GtkWidget *vb_dark = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-    gtk_widget_set_halign(vb_dark, GTK_ALIGN_CENTER);
-    GtkWidget *icon_dark = gtk_image_new_from_icon_name("weather-clear-night-symbolic", GTK_ICON_SIZE_BUTTON);
-    gtk_style_context_add_class(gtk_widget_get_style_context(icon_dark), "perf-icon");
-    gtk_box_pack_start(GTK_BOX(vb_dark), icon_dark, FALSE, FALSE, 0);
-    gtk_container_add(GTK_CONTAINER(btn_dark), vb_dark);
-
-    // Settings button
-    GtkWidget *btn_settings = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(btn_settings), GTK_RELIEF_NONE);
-    gtk_style_context_add_class(gtk_widget_get_style_context(btn_settings), "perf-btn-container");
-    gtk_widget_set_halign(btn_settings, GTK_ALIGN_CENTER);
-    gtk_widget_set_valign(btn_settings, GTK_ALIGN_CENTER);
-
-    GtkWidget *vb_settings = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-    gtk_widget_set_halign(vb_settings, GTK_ALIGN_CENTER);
-    GtkWidget *icon_settings = gtk_image_new_from_icon_name("preferences-system-symbolic", GTK_ICON_SIZE_BUTTON);
-    gtk_style_context_add_class(gtk_widget_get_style_context(icon_settings), "perf-icon");
-    gtk_box_pack_start(GTK_BOX(vb_settings), icon_settings, FALSE, FALSE, 0);
-    gtk_container_add(GTK_CONTAINER(btn_settings), vb_settings);
-
-    // Screenshot button
     GtkWidget *btn_shot = gtk_button_new();
     gtk_button_set_relief(GTK_BUTTON(btn_shot), GTK_RELIEF_NONE);
     gtk_style_context_add_class(gtk_widget_get_style_context(btn_shot), "perf-btn-container");
     gtk_widget_set_halign(btn_shot, GTK_ALIGN_CENTER);
     gtk_widget_set_valign(btn_shot, GTK_ALIGN_CENTER);
-
+    gtk_widget_set_tooltip_text(btn_shot, "Screenshot");
     GtkWidget *vb_shot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
     gtk_widget_set_halign(vb_shot, GTK_ALIGN_CENTER);
     GtkWidget *icon_shot = gtk_image_new_from_icon_name("camera-photo-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(icon_shot), "perf-icon");
     gtk_box_pack_start(GTK_BOX(vb_shot), icon_shot, FALSE, FALSE, 0);
     gtk_container_add(GTK_CONTAINER(btn_shot), vb_shot);
+    g_signal_connect(btn_shot, "clicked", G_CALLBACK(on_screenshot_clicked), NULL);
 
-    gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_dark, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_settings, FALSE, FALSE, 0);
+    GtkWidget *btn_select_shot = gtk_button_new();
+    gtk_button_set_relief(GTK_BUTTON(btn_select_shot), GTK_RELIEF_NONE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_select_shot), "perf-btn-container");
+    gtk_widget_set_halign(btn_select_shot, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(btn_select_shot, GTK_ALIGN_CENTER);
+    gtk_widget_set_tooltip_text(btn_select_shot, "Select Screenshot");
+    GtkWidget *vb_select_shot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_widget_set_halign(vb_select_shot, GTK_ALIGN_CENTER);
+    GtkWidget *icon_select_shot = gtk_image_new_from_icon_name("edit-select-all-symbolic", GTK_ICON_SIZE_BUTTON);
+    gtk_style_context_add_class(gtk_widget_get_style_context(icon_select_shot), "perf-icon");
+    gtk_box_pack_start(GTK_BOX(vb_select_shot), icon_select_shot, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(btn_select_shot), vb_select_shot);
+    g_signal_connect(btn_select_shot, "clicked", G_CALLBACK(on_select_screenshot_clicked), NULL);
+
+    GtkWidget *btn_record = gtk_button_new();
+    gtk_button_set_relief(GTK_BUTTON(btn_record), GTK_RELIEF_NONE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_record), "perf-btn-container");
+    gtk_widget_set_halign(btn_record, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(btn_record, GTK_ALIGN_CENTER);
+    gtk_widget_set_tooltip_text(btn_record, "Record");
+    GtkWidget *vb_record = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_widget_set_halign(vb_record, GTK_ALIGN_CENTER);
+    GtkWidget *icon_record = gtk_image_new_from_icon_name("media-record-symbolic", GTK_ICON_SIZE_BUTTON);
+    gtk_style_context_add_class(gtk_widget_get_style_context(icon_record), "perf-icon");
+    gtk_box_pack_start(GTK_BOX(vb_record), icon_record, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(btn_record), vb_record);
+    g_signal_connect(btn_record, "clicked", G_CALLBACK(on_record_clicked), NULL);
+
+    GtkWidget *btn_select_record = gtk_button_new();
+    gtk_button_set_relief(GTK_BUTTON(btn_select_record), GTK_RELIEF_NONE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_select_record), "perf-btn-container");
+    gtk_widget_set_halign(btn_select_record, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(btn_select_record, GTK_ALIGN_CENTER);
+    gtk_widget_set_tooltip_text(btn_select_record, "Select Record");
+    GtkWidget *vb_select_record = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_widget_set_halign(vb_select_record, GTK_ALIGN_CENTER);
+    GtkWidget *icon_select_record = gtk_image_new_from_icon_name("video-display-symbolic", GTK_ICON_SIZE_BUTTON);
+    gtk_style_context_add_class(gtk_widget_get_style_context(icon_select_record), "perf-icon");
+    gtk_box_pack_start(GTK_BOX(vb_select_record), icon_select_record, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(btn_select_record), vb_select_record);
+    g_signal_connect(btn_select_record, "clicked", G_CALLBACK(on_select_record_clicked), NULL);
+
     gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_shot, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_select_shot, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_record, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(inner_actions_box), btn_select_record, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(card_actions), inner_actions_box, TRUE, FALSE, 0);
 

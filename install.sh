@@ -18,9 +18,33 @@ if [[ ! -d "$PKG_DIR" ]]; then
     exit 1
 fi
 
+packages=(
+    aether-auth
+    aether-desktop
+    aether-aetherdock
+    aether-launcher
+    aether-osd-notify
+    aether-panel
+    aether-basilisk
+    aether-aetherlock
+    aether-aetheridle
+    aether-aether-recorder
+    aether-vpanel
+)
+
+deb_files=()
+for pkg in "${packages[@]}"; do
+    deb_file="${PKG_DIR}/${pkg}.deb"
+    if [[ ! -f "$deb_file" ]]; then
+        echo "Error: missing package '${deb_file}'. Please run ./package_all.sh first."
+        exit 1
+    fi
+    deb_files+=("$deb_file")
+done
+
 echo "--- Installing AetherShell Components ---"
 apt update || true
-apt install -y "$PKG_DIR"/*.deb
+apt install -y "${deb_files[@]}"
 
 echo ""
 echo "--- Installation Complete ---"

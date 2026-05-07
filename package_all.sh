@@ -8,7 +8,7 @@ BUILD_DIR="${BASE_DIR}/pkg_build"
 mkdir -p "${PKG_DIR}"
 mkdir -p "${BUILD_DIR}"
 
-projects=("auth" "desktop" "AetherDock" "launcher" "osd-notify" "panel" "basilisk" "aetherlock" "aetheridle" "vpanel")
+projects=("auth" "desktop" "AetherDock" "launcher" "osd-notify" "panel" "basilisk" "aetherlock" "aetheridle" "aether-recorder" "vpanel")
 
 for proj in "${projects[@]}"; do
     echo "--- Packaging ${proj} ---"
@@ -72,6 +72,8 @@ for proj in "${projects[@]}"; do
     elif [ "${proj}" == "aetherlock" ]; then
         DESTDIR="${STAGING}" meson install -C "${PROJ_PATH}/build" --no-rebuild
     elif [ "${proj}" == "aetheridle" ]; then
+        DESTDIR="${STAGING}" meson install -C "${PROJ_PATH}/build" --no-rebuild
+    elif [ "${proj}" == "aether-recorder" ]; then
         DESTDIR="${STAGING}" meson install -C "${PROJ_PATH}/build" --no-rebuild
     elif [ "${proj}" == "vpanel" ]; then
         make DESTDIR="${STAGING}" install

@@ -20,6 +20,7 @@ packages=(
     aether-basilisk
     aether-aetherlock
     aether-aetheridle
+    aether-aether-recorder
     aether-vpanel
 )
 

@@ -461,7 +461,65 @@ separator {
     color: #ffffff;
 }
 
+/* ── Original pill styling (hard-coded IDs kept for backward compat) ─── */
 #time-button, #sys-box, #status-box {
+    background-color: rgba(0, 0, 0, 0);
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
+/* ── Plugin-engine pill containers ────────────────────────────────────── */
+
+/* left-pill: transparent — same row as workspaces dots */
+#left-pill {
+    background-color: transparent;
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0 2px;
+}
+
+/* menu-pill: appmenu + clipboard — dark pill container */
+#menu-pill {
+    background-color: rgba(0, 0, 0, 0.300);
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    margin-right: 4px;
+    padding: 0 4px;
+}
+
+/* workspaces-pill: transparent, workspace dots float freely */
+#workspaces-pill {
+    background-color: transparent;
+    border-radius: 14px;
+    margin-top: 1px;
+    margin-bottom: 1px;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 0;
+}
+
+/* keyboard-pill: standalone — transparent, no background */
+#keyboard-pill {
+    background-color: transparent;
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 2px;
+    margin-right: 2px;
+    padding: 0;
+}
+
+
+/* center-pill: dark pill — mirrors the old #time-button */
+#center-pill {
     background-color: rgba(0, 0, 0, 0.3);
     border-radius: 14px;
     margin-top: 4px;
@@ -469,3 +527,37 @@ separator {
     margin-left: 4px;
     margin-right: 4px;
 }
+
+/* sni-pill: transparent — SNI tray floats without background */
+#sni-pill {
+    background-color: transparent;
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 0;
+    margin-right: 4px;
+    padding: 0 2px;
+}
+
+/* status-pill: dark pill — mirrors the old #status-box */
+#status-pill {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    margin-right: 4px;
+    padding: 0 4px;
+}
+
+/* sys-pill: dark pill — mirrors the old #sys-box */
+#sys-pill {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 14px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+    margin-right: 4px;
+    padding: 0 4px;
+}
+

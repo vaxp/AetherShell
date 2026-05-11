@@ -1,424 +1,425 @@
+/*
+ * panel.c — AetherShell Panel
+ *
+ * Bootstrap:
+ *   1. gtk_init
+ *   2. CSS provider (base + user, with live-reload)
+ *   3. Plugin engine init
+ *   4. Register all built-in plugins
+ *   5. (Optional) scan external plugin directory for .so files
+ *   6. Create the Layer-Shell window
+ *   7. Build the pill-based layout from panel.json
+ *   8. gtk_main loop
+ */
+
 #include <gtk/gtk.h>
 #include <gtk-layer-shell.h>
 #include <glib/gstdio.h>
 #include <time.h>
-#include "control_center_ui.h"
-#include "app_menu.h"
-#include "battery_indicator.h"
-#include "keyboard_layout.h"
-#include "workspaces.h"
-#include "sni_tray.h"
+
+#include "plugin_engine.h"
+#include "builtin_plugins.h"
+#include "layout_builder.h"
+#include "css_provider.h"
 #include "resource_paths.h"
-#include "volume_indicator.h"
-#include "mic_indicator.h"
-#include "wifi_indicator.h"
-#include "bt_indicator.h"
-#include "sidebar_popup.h"
-#include "notifications_ui.h"
 #include "window_backend.h"
 #include "compositor_backend.h"
 
-static GtkWidget *time_label;
-static const gint PANEL_HEIGHT = 32;
-static guint recovery_source_id = 0;
-static char *panel_executable_path = NULL;
+/* ── Constants ─────────────────────────────────────────────────────────────── */
 
-static gboolean panel_has_available_monitor(void) {
+/* Default panel height (JSON can override this at startup) */
+#define DEFAULT_PANEL_HEIGHT  36
+
+/* External plugin directory — scanned for *.so at startup */
+#define EXTERNAL_PLUGIN_DIR   "/usr/share/aether-panel/plugins"
+
+/* Installed system-wide panel layout JSON */
+#define DEFAULT_LAYOUT_JSON       "/usr/local/share/panel/panel.json"
+
+/* Relative path from binary dir used during development (./config/panel.json) */
+#define DEV_LAYOUT_JSON_RELPATH   "config/panel.json"
+
+/* ── Default panel.json written when no config is found ───────────────── */
+static const char *PANEL_DEFAULT_JSON =
+    "{\n"
+    "  \"_comment\": \"AetherShell Panel — auto-generated default layout.\",\n"
+    "  \"panel\": {\n"
+    "    \"height\"  : 36,\n"
+    "    \"spacing\" : 8,\n"
+    "    \"margin\"  : { \"top\": 4, \"left\": 8, \"right\": 8 }\n"
+    "  },\n"
+    "  \"layout\": {\n"
+    "    \"left\": [\n"
+    "      { \"type\": \"pill\", \"id\": \"left-pill\", \"spacing\": 2,\n"
+    "        \"plugins\": [\"aether-appmenu\", \"aether-clipboard\", \"aether-workspaces\"] }\n"
+    "    ],\n"
+    "    \"center\": [\n"
+    "      { \"type\": \"pill\", \"id\": \"center-pill\", \"spacing\": 0,\n"
+    "        \"plugins\": [\"aether-clock\"] }\n"
+    "    ],\n"
+    "    \"right\": [\n"
+    "      { \"type\": \"pill\", \"id\": \"sni-pill\", \"spacing\": 2,\n"
+    "        \"plugins\": [\"aether-sni-tray\"] },\n"
+    "      { \"type\": \"pill\", \"id\": \"status-pill\", \"spacing\": 2,\n"
+    "        \"plugins\": [\"aether-keyboard\", \"aether-bt\", \"aether-wifi\", \"aether-mic\", \"aether-volume\"] },\n"
+    "      { \"type\": \"pill\", \"id\": \"sys-pill\", \"spacing\": 2,\n"
+    "        \"plugins\": [\"aether-battery\", \"aether-search\", \"aether-notifs\", \"aether-cc\"] }\n"
+    "    ]\n"
+    "  }\n"
+    "}\n";
+
+/* ── Globals ───────────────────────────────────────────────────────────────── */
+
+static char    *g_executable_path   = NULL;
+static guint    g_recovery_source   = 0;
+static int      g_panel_height      = DEFAULT_PANEL_HEIGHT;
+
+/* ── Layout live-reload state ───────────────────────────────────────────────── */
+
+static char          *g_layout_json_path = NULL; /* monitored file path        */
+static GtkWidget     *g_panel_bar        = NULL; /* outer bar — always alive   */
+static GtkWidget     *g_content          = NULL; /* current layout content     */
+static GFileMonitor  *g_layout_monitor   = NULL; /* GFileMonitor for panel.json */
+static guint          g_reload_idle      = 0;    /* pending idle source id     */
+
+/* ── Monitor helpers ───────────────────────────────────────────────────────── */
+
+static gboolean has_available_monitor(void)
+{
     GdkDisplay *display = gdk_display_get_default();
-
     if (!display) return FALSE;
     if (gdk_display_get_primary_monitor(display)) return TRUE;
     return gdk_display_get_n_monitors(display) > 0;
 }
 
-static gboolean restart_panel_process(void) {
-    GError *error = NULL;
-    gchar *argv[] = { panel_executable_path, NULL };
-
-    if (!panel_executable_path || panel_executable_path[0] == '\0') {
-        g_warning("[Panel] Cannot restart: executable path is unavailable");
-        return FALSE;
-    }
-
-    if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
-        g_warning("[Panel] Failed to restart panel: %s", error ? error->message : "unknown error");
-        if (error) g_error_free(error);
-        return FALSE;
-    }
-
-    return TRUE;
-}
-
-static gboolean try_recover_panel(gpointer data) {
-    (void)data;
-
-    if (!panel_has_available_monitor()) return G_SOURCE_CONTINUE;
-
-    if (restart_panel_process()) {
-        recovery_source_id = 0;
-        gtk_main_quit();
-        return G_SOURCE_REMOVE;
-    }
-
-    return G_SOURCE_CONTINUE;
-}
-
-static void on_panel_window_destroy(GtkWidget *widget, gpointer user_data) {
-    (void)widget;
-    (void)user_data;
-
-    if (recovery_source_id == 0) {
-        recovery_source_id = g_timeout_add(1000, try_recover_panel, NULL);
-    }
-}
-
-static gboolean get_widget_monitor_geometry(GtkWidget *widget, GdkRectangle *geom) {
-    if (!widget || !geom) return FALSE;
-
-    GdkDisplay *display = gtk_widget_get_display(widget);
-    if (!display) return FALSE;
-
-    GdkMonitor *monitor = NULL;
-    GdkWindow *gdk_win = gtk_widget_get_window(widget);
-    if (gdk_win) {
-        monitor = gdk_display_get_monitor_at_window(display, gdk_win);
-    }
-    if (!monitor) {
-        monitor = gdk_display_get_primary_monitor(display);
-    }
-    if (!monitor && gdk_display_get_n_monitors(display) > 0) {
-        monitor = gdk_display_get_monitor(display, 0);
-    }
-    if (!monitor) return FALSE;
-
-    gdk_monitor_get_geometry(monitor, geom);
-    return TRUE;
-}
-
-static gboolean get_primary_monitor_geometry(GdkScreen *screen, GdkRectangle *geom) {
+static gboolean get_primary_monitor_geometry(GdkScreen    *screen,
+                                             GdkRectangle *geom)
+{
     if (!screen || !geom) return FALSE;
-
     GdkDisplay *display = gdk_screen_get_display(screen);
     if (!display) return FALSE;
 
-    GdkMonitor *monitor = gdk_display_get_primary_monitor(display);
-    if (!monitor && gdk_display_get_n_monitors(display) > 0) {
-        monitor = gdk_display_get_monitor(display, 0);
-    }
-    if (!monitor) return FALSE;
+    GdkMonitor *mon = gdk_display_get_primary_monitor(display);
+    if (!mon && gdk_display_get_n_monitors(display) > 0)
+        mon = gdk_display_get_monitor(display, 0);
+    if (!mon) return FALSE;
 
-    gdk_monitor_get_geometry(monitor, geom);
+    gdk_monitor_get_geometry(mon, geom);
     return TRUE;
 }
 
-static void setup_wayfire_layer_shell(GtkWidget *window) {
-    panel_window_backend_init_panel(GTK_WINDOW(window), "con-panel");
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
-    panel_window_backend_auto_exclusive_zone_enable(GTK_WINDOW(window));
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, 0);
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, 0);
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+static gboolean get_widget_monitor_geometry(GtkWidget    *widget,
+                                            GdkRectangle *geom)
+{
+    if (!widget || !geom) return FALSE;
+    GdkDisplay *display = gtk_widget_get_display(widget);
+    if (!display) return FALSE;
+
+    GdkMonitor *mon = NULL;
+    GdkWindow  *win = gtk_widget_get_window(widget);
+    if (win) mon = gdk_display_get_monitor_at_window(display, win);
+    if (!mon) mon = gdk_display_get_primary_monitor(display);
+    if (!mon && gdk_display_get_n_monitors(display) > 0)
+        mon = gdk_display_get_monitor(display, 0);
+    if (!mon) return FALSE;
+
+    gdk_monitor_get_geometry(mon, geom);
+    return TRUE;
 }
 
-static gboolean update_time(gpointer data) {
-    time_t rawtime;
-    struct tm *info;
-    char buffer[80];
+/* ── Recovery / restart ────────────────────────────────────────────────────── */
 
-    time(&rawtime);
-    info = localtime(&rawtime);
-    strftime(buffer, sizeof(buffer), "%H:%M - %b %d", info);
-
-    gtk_label_set_text(GTK_LABEL(time_label), buffer);
-    return TRUE; // Continue repeating
-}
-
-static void on_panel_cc_toggle_clicked(GtkButton *btn, gpointer user_data) {
-    GtkWidget *popup = GTK_WIDGET(user_data);
-    if (popup) {
-        if (GTK_IS_POPOVER(popup)) {
-            if (gtk_widget_get_visible(popup)) {
-                gtk_popover_popdown(GTK_POPOVER(popup));
-            } else {
-                gtk_popover_popup(GTK_POPOVER(popup));
-            }
-        } else {
-            if (gtk_widget_get_visible(popup)) {
-                gtk_widget_hide(popup);
-            } else {
-                gtk_widget_show_all(popup);
-            }
-        }
+static gboolean restart_panel(void)
+{
+    if (!g_executable_path || g_executable_path[0] == '\0') {
+        g_warning("[Panel] Cannot restart: executable path unavailable");
+        return FALSE;
     }
-}
-
-static void on_panel_sidebar_toggle_clicked(GtkButton *btn, gpointer user_data) {
-    GtkWidget *popup = GTK_WIDGET(user_data);
-    sidebar_popup_toggle(popup, GTK_WIDGET(btn));
-}
-
-static void on_panel_search_clicked(GtkButton *btn, gpointer user_data) {
-    GError *error = NULL;
-    gchar *argv[] = {
-        "gdbus",
-        "call",
-        "--session",
-        "--dest", "org.venom.Basilisk",
-        "--object-path", "/org/venom/Basilisk",
-        "--method", "org.venom.Basilisk.Toggle",
-        NULL
-    };
-
-    (void)btn;
-    (void)user_data;
-
-    if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
-        g_warning("[Panel] Failed to toggle Basilisk search: %s",
-                  error ? error->message : "unknown error");
-        if (error) g_error_free(error);
+    GError *err  = NULL;
+    gchar  *argv[] = { g_executable_path, NULL };
+    if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH,
+                       NULL, NULL, NULL, &err)) {
+        g_warning("[Panel] Restart failed: %s", err ? err->message : "?");
+        if (err) g_error_free(err);
+        return FALSE;
     }
+    return TRUE;
 }
 
-static void on_panel_clipboard_clicked(GtkButton *btn, gpointer user_data) {
-    GError *error = NULL;
-    gchar *argv[] = {
-        "dbus-send",
-        "--session",
-        "--print-reply",
-        "--dest=org.aether.Clipboard",
-        "/org/aether/Clipboard",
-        "org.aether.Clipboard.Toggle",
-        NULL
-    };
-
-    (void)btn;
-    (void)user_data;
-
-    if (!g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
-        g_warning("[Panel] Failed to show clipboard: %s",
-                  error ? error->message : "unknown error");
-        if (error) g_error_free(error);
+static gboolean try_recover(gpointer data)
+{
+    (void)data;
+    if (!has_available_monitor()) return G_SOURCE_CONTINUE;
+    if (restart_panel()) {
+        g_recovery_source = 0;
+        gtk_main_quit();
+        return G_SOURCE_REMOVE;
     }
+    return G_SOURCE_CONTINUE;
 }
 
-static void on_panel_screen_changed(GdkScreen *screen, gpointer user_data) {
-    GtkWidget *window = GTK_WIDGET(user_data);
+static void on_panel_window_destroy(GtkWidget *w, gpointer d)
+{
+    (void)w; (void)d;
+    plugin_engine_shutdown();
+    panel_css_provider_shutdown();
+    if (g_recovery_source == 0)
+        g_recovery_source = g_timeout_add(1000, try_recover, NULL);
+}
+
+/* ── Screen-change handler ─────────────────────────────────────────────────── */
+
+static void on_screen_changed(GdkScreen *screen, gpointer user_data)
+{
+    GtkWidget    *window = GTK_WIDGET(user_data);
+    GdkRectangle  geom   = {0};
     (void)screen;
 
-    GdkRectangle monitor_geom = {0};
-    if (!get_widget_monitor_geometry(window, &monitor_geom)) return;
-
-    gtk_widget_set_size_request(window, monitor_geom.width, PANEL_HEIGHT);
-    gtk_window_resize(GTK_WINDOW(window), monitor_geom.width, PANEL_HEIGHT);
+    if (get_widget_monitor_geometry(window, &geom)) {
+        gtk_widget_set_size_request(window, geom.width, g_panel_height);
+        gtk_window_resize(GTK_WINDOW(window), geom.width, g_panel_height);
+    }
 }
 
-int main(int argc, char *argv[]) {
-    g_setenv("NO_AT_BRIDGE", "1", TRUE);
-    gtk_init(&argc, &argv);
-    panel_window_backend_detect();
-    panel_compositor_backend_init();
-    panel_executable_path = g_file_read_link("/proc/self/exe", NULL);
-    if (!panel_executable_path && argc > 0 && argv[0] && argv[0][0] != '\0') {
-        panel_executable_path = g_strdup(argv[0]);
+/* ── Layout live-reload ────────────────────────────────────────────────────── */
+
+static gboolean do_reload_layout(gpointer data)
+{
+    (void)data;
+    g_reload_idle = 0;
+
+    if (!g_panel_bar || !g_layout_json_path) return G_SOURCE_REMOVE;
+
+    g_debug("[Panel] Live-reloading layout from %s", g_layout_json_path);
+
+    /* Step 1: Detach plugin widgets from their parents, adding a g_object_ref
+     *          so they survive the container destruction below */
+    plugin_engine_recreate_widgets();
+
+    /* Step 2: Destroy the old layout — plugin widgets are orphaned but alive */
+    if (g_content) {
+        gtk_widget_destroy(g_content);
+        g_content = NULL;
     }
 
-    // Initialize the background control center window (starts hidden)
-    GtkWidget *cc_window = init_control_center();
-    
-    // Initialize the background app menu window (starts hidden)
-    GtkWidget *app_menu_w = init_app_menu();
+    /* Step 3: Build a new layout — layout_builder reuses the live widgets */
+    GtkWidget *new_content = layout_builder_build(g_layout_json_path);
+    if (!new_content) {
+        g_warning("[Panel] Layout reload: builder returned NULL");
+        plugin_engine_release_saved_refs();
+        return G_SOURCE_REMOVE;
+    }
 
-    // Initialize the background sidebar window (starts hidden)
-    GtkWidget *sidebar_w = init_sidebar_popup();
+    g_content = new_content;
+    gtk_box_pack_start(GTK_BOX(g_panel_bar), g_content, TRUE, TRUE, 0);
+    gtk_widget_show_all(g_panel_bar);
 
-    // Initialize the notifications popup (starts hidden)
-    GtkWidget *notif_w = init_notifications_ui();
+    /* Step 4: Drop the extra refs — widgets now have parents again */
+    plugin_engine_release_saved_refs();
 
-    // Create Panel Window
+    return G_SOURCE_REMOVE;
+}
+
+static void on_layout_file_changed(GFileMonitor      *mon,
+                                   GFile             *file,
+                                   GFile             *other,
+                                   GFileMonitorEvent  event,
+                                   gpointer           user_data)
+{
+    (void)mon; (void)file; (void)other; (void)user_data;
+
+    /* Only react to actual writes */
+    if (event != G_FILE_MONITOR_EVENT_CHANGED &&
+        event != G_FILE_MONITOR_EVENT_CREATED)
+        return;
+
+    /* Coalesce rapid saves — schedule one idle rebuild */
+    if (g_reload_idle == 0)
+        g_reload_idle = g_timeout_add(120, do_reload_layout, NULL);
+}
+
+static void start_layout_monitor(const char *path)
+{
+    if (!path) return;
+
+    GFile  *f   = g_file_new_for_path(path);
+    GError *err = NULL;
+    g_layout_monitor = g_file_monitor_file(f,
+                           G_FILE_MONITOR_NONE, NULL, &err);
+    g_object_unref(f);
+
+    if (!g_layout_monitor) {
+        g_warning("[Panel] Cannot monitor layout file: %s",
+                  err ? err->message : "?");
+        if (err) g_error_free(err);
+        return;
+    }
+
+    g_file_monitor_set_rate_limit(g_layout_monitor, 200);
+    g_signal_connect(g_layout_monitor, "changed",
+                     G_CALLBACK(on_layout_file_changed), NULL);
+    g_debug("[Panel] Monitoring layout: %s", path);
+}
+
+/* ── Window setup ──────────────────────────────────────────────────────────── */
+
+static GtkWidget *create_panel_window(GdkScreen *screen)
+{
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
     gtk_window_set_resizable(GTK_WINDOW(window), FALSE);
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DOCK);
-    setup_wayfire_layer_shell(window);
-    
-    // Make window transparent
-    GdkScreen *screen = gtk_widget_get_screen(window);
+
+    /* Layer-shell anchoring */
+    panel_window_backend_init_panel(GTK_WINDOW(window), "con-panel");
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   TRUE);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  TRUE);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+    panel_window_backend_auto_exclusive_zone_enable(GTK_WINDOW(window));
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   0);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  0);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+
+    /* RGBA visual for transparency */
     GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
-    if (visual != NULL && gdk_screen_is_composited(screen)) {
+    if (visual && gdk_screen_is_composited(screen)) {
         gtk_widget_set_visual(window, visual);
         gtk_widget_set_app_paintable(window, TRUE);
     }
-    
-    // Set position and size
-    GdkRectangle monitor_geom = {0};
-    if (get_primary_monitor_geometry(screen, &monitor_geom)) {
-        gtk_widget_set_size_request(window, monitor_geom.width, PANEL_HEIGHT);
-        gtk_window_set_default_size(GTK_WINDOW(window), monitor_geom.width, PANEL_HEIGHT);
+
+    /* Initial size */
+    GdkRectangle geom = {0};
+    if (get_primary_monitor_geometry(screen, &geom)) {
+        gtk_widget_set_size_request(window, geom.width, g_panel_height);
+        gtk_window_set_default_size(GTK_WINDOW(window), geom.width, g_panel_height);
     }
 
-    // Watch for screen changes
-    g_signal_connect(screen, "size-changed", G_CALLBACK(on_panel_screen_changed), window);
-    g_signal_connect(screen, "monitors-changed", G_CALLBACK(on_panel_screen_changed), window);
-
-    // Layout
+    /* Background container */
     GtkWidget *panel_bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_widget_set_name(panel_bar, "panel-bar");
     gtk_container_add(GTK_CONTAINER(window), panel_bar);
 
-    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-    gtk_widget_set_name(hbox, "panel-content");
-    gtk_widget_set_margin_start(hbox, 8);
-    gtk_widget_set_margin_end(hbox, 8);
-    gtk_box_pack_start(GTK_BOX(panel_bar), hbox, TRUE, TRUE, 0);
+    return window;
+}
 
-    // Left side
-    GtkWidget *left_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_set_name(left_box, "status-box");
+/* ── Resolve (or generate) panel.json path ────────────────────────────────── */
 
-    GtkWidget *menu_btn = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(menu_btn), GTK_RELIEF_NONE);
-
-    char *menu_icon_path = panel_resource_path_in("images", "vaxp.png");
-    GdkPixbuf *menu_pixbuf = gdk_pixbuf_new_from_file_at_scale(menu_icon_path, 24, 24, TRUE, NULL);
-    g_free(menu_icon_path);
-    GtkWidget *menu_icon;
-    if (menu_pixbuf) {
-        menu_icon = gtk_image_new_from_pixbuf(menu_pixbuf);
-        g_object_unref(menu_pixbuf);
-    } else {
-        menu_icon = gtk_image_new_from_icon_name("start-here-symbolic", GTK_ICON_SIZE_MENU);
+static char *resolve_layout_json_path(void)
+{
+    /* 1. User override: ~/.config/aether/panel.json */
+    char *user_path = g_build_filename(g_get_user_config_dir(),
+                                       "aether", "panel.json", NULL);
+    if (g_file_test(user_path, G_FILE_TEST_EXISTS)) {
+        g_debug("[Panel] Using user layout: %s", user_path);
+        return user_path;
     }
-    gtk_container_add(GTK_CONTAINER(menu_btn), menu_icon);
-    app_menu_set_relative_to(app_menu_w, menu_btn);
-    g_signal_connect(menu_btn, "clicked", G_CALLBACK(on_panel_cc_toggle_clicked), app_menu_w);
-    gtk_box_pack_start(GTK_BOX(left_box), menu_btn, FALSE, FALSE, 0);
+    g_free(user_path);
 
-    GtkWidget *clipboard_btn = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(clipboard_btn), GTK_RELIEF_NONE);
-    gtk_widget_set_tooltip_text(clipboard_btn, "Clipboard");
-    GtkWidget *clipboard_icon = gtk_image_new_from_icon_name("edit-paste-symbolic", GTK_ICON_SIZE_MENU);
-    gtk_container_add(GTK_CONTAINER(clipboard_btn), clipboard_icon);
-    g_signal_connect(clipboard_btn, "clicked", G_CALLBACK(on_panel_clipboard_clicked), NULL);
-    gtk_box_pack_start(GTK_BOX(left_box), clipboard_btn, FALSE, FALSE, 0);
-
-    gtk_box_pack_start(GTK_BOX(hbox), left_box, FALSE, FALSE, 0);
-
-    // Workspaces
-    GtkWidget *workspaces_widget = create_workspaces_widget();
-    gtk_widget_set_margin_start(workspaces_widget, 8);
-    gtk_box_pack_start(GTK_BOX(hbox), workspaces_widget, FALSE, FALSE, 0);
-
-    // Center (Time)
-    GtkWidget *center_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_set_halign(center_box, GTK_ALIGN_CENTER);
-    time_label = gtk_label_new("");
-    update_time(NULL);
-    g_timeout_add_seconds(1, update_time, NULL);
-    
-    GtkWidget *time_btn = gtk_button_new();
-    gtk_widget_set_name(time_btn, "time-button");
-    gtk_button_set_relief(GTK_BUTTON(time_btn), GTK_RELIEF_NONE);
-    gtk_container_add(GTK_CONTAINER(time_btn), time_label);
-    sidebar_popup_set_relative_to(sidebar_w, time_btn);
-    g_signal_connect(time_btn, "clicked", G_CALLBACK(on_panel_sidebar_toggle_clicked), sidebar_w);
-    
-    gtk_box_pack_start(GTK_BOX(center_box), time_btn, FALSE, FALSE, 0);
-    
-    gtk_box_set_center_widget(GTK_BOX(hbox), center_box);
-
-    // Right side
-    GtkWidget *right_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-
-    GtkWidget *cc_btn = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(cc_btn), GTK_RELIEF_NONE);
-    GtkWidget *cc_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-
-    char *cc_icon_path = panel_resource_path_in("images", "control-center-icon.svg");
-    GdkPixbuf *cc_pixbuf = gdk_pixbuf_new_from_file_at_scale(cc_icon_path, 24, 24, TRUE, NULL);
-    g_free(cc_icon_path);
-    GtkWidget *cc_icon;
-    if (cc_pixbuf) {
-        cc_icon = gtk_image_new_from_pixbuf(cc_pixbuf);
-        g_object_unref(cc_pixbuf);
-    } else {
-        // Fallback if image is missing
-        cc_icon = gtk_image_new_from_icon_name("preferences-system-symbolic", GTK_ICON_SIZE_MENU);
+    /* 2. Installed system path */
+    if (g_file_test(DEFAULT_LAYOUT_JSON, G_FILE_TEST_EXISTS)) {
+        g_debug("[Panel] Using system layout: %s", DEFAULT_LAYOUT_JSON);
+        return g_strdup(DEFAULT_LAYOUT_JSON);
     }
-    
-    gtk_box_pack_start(GTK_BOX(cc_box), cc_icon, FALSE, FALSE, 0);
-    gtk_container_add(GTK_CONTAINER(cc_btn), cc_box);
-    control_center_set_relative_to(cc_window, cc_btn);
-    // SNI tray is intentionally created last so it starts after the rest of the panel UI.
-    GtkWidget *sni_tray = create_sni_tray_widget();
-    gtk_box_pack_start(GTK_BOX(right_box), sni_tray, FALSE, FALSE, 0);
 
-    // Keyboard layout indicator
-    GtkWidget *keyboard_layout_widget = create_keyboard_layout_widget();
-    gtk_box_pack_start(GTK_BOX(right_box), keyboard_layout_widget, FALSE, FALSE, 0);
+    /* 3. Development path — next to the binary (./config/panel.json) */
+    if (g_executable_path) {
+        char *bin_dir  = g_path_get_dirname(g_executable_path);
+        char *dev_path = g_build_filename(bin_dir, DEV_LAYOUT_JSON_RELPATH, NULL);
+        g_free(bin_dir);
+        if (g_file_test(dev_path, G_FILE_TEST_EXISTS)) {
+            g_debug("[Panel] Using dev layout: %s", dev_path);
+            return dev_path;
+        }
+        g_free(dev_path);
+    }
 
-    // Status box to group wifi, mic, and volume
-    GtkWidget *status_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_set_name(status_box, "status-box");
+    /* 4. Nothing found — auto-generate at ~/.config/aether/panel.json */
+    char *gen_path = g_build_filename(g_get_user_config_dir(),
+                                      "aether", "panel.json", NULL);
+    char *gen_dir  = g_path_get_dirname(gen_path);
+    g_mkdir_with_parents(gen_dir, 0755);
+    g_free(gen_dir);
 
-    // Wifi indicator
-    GtkWidget *wifi_widget = create_wifi_indicator_widget();
-    gtk_box_pack_start(GTK_BOX(status_box), wifi_widget, FALSE, FALSE, 0);
+    GError *err = NULL;
+    if (g_file_set_contents(gen_path, PANEL_DEFAULT_JSON, -1, &err)) {
+        g_message("[Panel] Generated default panel.json at: %s", gen_path);
+        return gen_path;
+    }
 
-    // Bluetooth indicator
-    GtkWidget *bt_widget = create_bt_indicator_widget();
-    gtk_box_pack_start(GTK_BOX(status_box), bt_widget, FALSE, FALSE, 0);
+    g_warning("[Panel] Could not generate panel.json: %s",
+              err ? err->message : "unknown error");
+    if (err) g_error_free(err);
+    g_free(gen_path);
+    return NULL;
+}
 
-    // Mic indicator
-    GtkWidget *mic_widget = create_mic_indicator_widget();
-    gtk_box_pack_start(GTK_BOX(status_box), mic_widget, FALSE, FALSE, 0);
+/* ── main ──────────────────────────────────────────────────────────────────── */
 
-    // Volume indicator
-    GtkWidget *volume_widget = create_volume_indicator_widget();
-    gtk_box_pack_start(GTK_BOX(status_box), volume_widget, FALSE, FALSE, 0);
+int main(int argc, char *argv[])
+{
+    g_setenv("NO_AT_BRIDGE", "1", TRUE);
+    gtk_init(&argc, &argv);
 
-    gtk_box_pack_start(GTK_BOX(right_box), status_box, FALSE, FALSE, 0);
+    panel_window_backend_detect();
+    panel_compositor_backend_init();
 
+    /* Stash executable path for crash-recovery restart */
+    g_executable_path = g_file_read_link("/proc/self/exe", NULL);
+    if (!g_executable_path && argc > 0 && argv[0] && argv[0][0] != '\0')
+        g_executable_path = g_strdup(argv[0]);
 
-    // Sys box to group battery, search, and cc_btn
-    GtkWidget *sys_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-    gtk_widget_set_name(sys_box, "sys-box");
+    /* ── CSS ──────────────────────────────────────────────────────────────── */
+    char *base_css = panel_resource_path_in("", "style.css");
+    panel_css_provider_init(base_css);
+    g_free(base_css);
 
-    // Battery widget
-    GtkWidget *battery_widget = get_battery_widget();
-    gtk_box_pack_start(GTK_BOX(sys_box), battery_widget, FALSE, FALSE, 0);
+    /* ── Plugin engine ────────────────────────────────────────────────────── */
+    plugin_engine_init();
+    builtin_plugins_register_all();
 
-    g_signal_connect(cc_btn, "clicked", G_CALLBACK(on_panel_cc_toggle_clicked), cc_window);
-    
-    // Search button (UI only)
-    GtkWidget *search_btn = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(search_btn), GTK_RELIEF_NONE);
-    GtkWidget *search_icon = gtk_image_new_from_icon_name("system-search-symbolic", GTK_ICON_SIZE_MENU);
-    gtk_container_add(GTK_CONTAINER(search_btn), search_icon);
-    g_signal_connect(search_btn, "clicked", G_CALLBACK(on_panel_search_clicked), NULL);
-    gtk_box_pack_start(GTK_BOX(sys_box), search_btn, FALSE, FALSE, 0);
+    /* Scan for external .so plugins (silently skips if dir absent) */
+    plugin_engine_scan_dir(EXTERNAL_PLUGIN_DIR);
 
-    // Notifications bell button
-    GtkWidget *notif_btn = gtk_button_new();
-    gtk_button_set_relief(GTK_BUTTON(notif_btn), GTK_RELIEF_NONE);
-    GtkWidget *notif_icon = gtk_image_new_from_icon_name("preferences-system-notifications-symbolic", GTK_ICON_SIZE_MENU);
-    gtk_container_add(GTK_CONTAINER(notif_btn), notif_icon);
-    g_signal_connect(notif_btn, "clicked", G_CALLBACK(on_panel_cc_toggle_clicked), notif_w);
-    gtk_box_pack_start(GTK_BOX(sys_box), notif_btn, FALSE, FALSE, 0);
+    /* ── Create window ────────────────────────────────────────────────────── */
+    GdkScreen  *screen = gdk_screen_get_default();
+    GtkWidget  *window = create_panel_window(screen);
 
-    gtk_box_pack_start(GTK_BOX(sys_box), cc_btn, FALSE, FALSE, 0);
-    
-    gtk_box_pack_start(GTK_BOX(right_box), sys_box, FALSE, FALSE, 0);
-    gtk_box_pack_end(GTK_BOX(hbox), right_box, FALSE, FALSE, 0);
-    
-    g_signal_connect(window, "destroy", G_CALLBACK(on_panel_window_destroy), NULL);
-    
+    g_signal_connect(screen, "size-changed",     G_CALLBACK(on_screen_changed), window);
+    g_signal_connect(screen, "monitors-changed", G_CALLBACK(on_screen_changed), window);
+    g_signal_connect(window, "destroy",          G_CALLBACK(on_panel_window_destroy), NULL);
+
+    /* ── Build layout from JSON ───────────────────────────────────────────── */
+    g_layout_json_path = resolve_layout_json_path();
+
+    /* Parse height from JSON before we build (so window sizing is correct) */
+    if (g_layout_json_path) {
+        PanelLayoutConfig cfg;
+        if (layout_builder_parse_config(g_layout_json_path, &cfg))
+            g_panel_height = cfg.height;
+    }
+
+    g_content = g_layout_json_path
+        ? layout_builder_build(g_layout_json_path)
+        : gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+
+    /* Keep a reference to panel_bar for live-reload */
+    g_panel_bar = gtk_bin_get_child(GTK_BIN(window));
+    if (g_panel_bar && g_content)
+        gtk_box_pack_start(GTK_BOX(g_panel_bar), g_content, TRUE, TRUE, 0);
+
+    /* ── Start monitoring panel.json for live layout reload ──────────────── */
+    start_layout_monitor(g_layout_json_path);
+
     gtk_widget_show_all(window);
-    
     gtk_main();
-    g_free(panel_executable_path);
 
+    /* Cleanup */
+    if (g_layout_monitor) {
+        g_file_monitor_cancel(g_layout_monitor);
+        g_object_unref(g_layout_monitor);
+    }
+    g_free(g_layout_json_path);
+    g_free(g_executable_path);
     return 0;
 }

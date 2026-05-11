@@ -1,0 +1,83 @@
+{
+  "_comment": "AetherShell Panel Layout — edit to customise your panel.",
+
+  "panel": {
+    "height"  : 36,
+    "spacing" : 0,
+    "margin"  : { "top": 0, "left": 0, "right": 0 }
+  },
+
+  "layout": {
+    "left": [
+      {
+        "type"    : "pill",
+        "id"      : "menu-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-appmenu",
+          "aether-clipboard"
+        ]
+      },
+      {
+        "type"    : "pill",
+        "id"      : "workspaces-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-workspaces"
+        ]
+      }
+    ],
+
+    "center": [
+      {
+        "type"    : "pill",
+        "id"      : "center-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-clock"
+        ]
+      }
+    ],
+
+    "right": [
+      {
+        "type"    : "pill",
+        "id"      : "sys-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-battery",
+          "aether-search",
+          "aether-notifs",
+          "aether-cc"
+        ]
+      },
+      {
+        "type"    : "pill",
+        "id"      : "status-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-wifi",
+          "aether-bt",
+          "aether-mic",
+          "aether-volume"
+        ]
+      },
+      {
+        "type"    : "pill",
+        "id"      : "keyboard-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-keyboard"
+        ]
+      },
+      {
+        "type"    : "pill",
+        "id"      : "sni-pill",
+        "spacing" : 0,
+        "plugins" : [
+          "aether-sni-tray"
+        ]
+      }
+    ]
+  }
+}

@@ -13,6 +13,7 @@ G_DECLARE_FINAL_TYPE (VenomAppIcon, venom_app_icon, VENOM, APP_ICON, GtkButton)
  * Shows a 96×96 icon image + app name label below.
  */
 GtkWidget *venom_app_icon_new       (AppEntry *entry);
+void       venom_app_icon_set_entry (VenomAppIcon *icon, AppEntry *entry);
 AppEntry  *venom_app_icon_get_entry (VenomAppIcon *icon);
 
 G_END_DECLS

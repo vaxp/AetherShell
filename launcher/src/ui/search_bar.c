@@ -49,8 +49,22 @@ on_text_changed (GtkEditable *editable, gpointer user_data)
  * ------------------------------------------------------------------------- */
 
 static void
+venom_search_bar_dispose (GObject *obj)
+{
+    VenomSearchBar *self = VENOM_SEARCH_BAR (obj);
+    if (self->debounce_id) {
+        g_source_remove (self->debounce_id);
+        self->debounce_id = 0;
+    }
+    G_OBJECT_CLASS (venom_search_bar_parent_class)->dispose (obj);
+}
+
+static void
 venom_search_bar_class_init (VenomSearchBarClass *klass)
 {
+    GObjectClass *obj_class = G_OBJECT_CLASS (klass);
+    obj_class->dispose = venom_search_bar_dispose;
+
     signals[SIGNAL_SEARCH_CHANGED] =
         g_signal_new ("search-changed-debounced",
                       G_TYPE_FROM_CLASS (klass),

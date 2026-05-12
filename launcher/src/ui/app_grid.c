@@ -89,21 +89,35 @@ populate_page (VenomAppGrid *self, GtkStackTransitionType transition)
     GtkWidget *target_box = (self->active_box == 1) ? self->flow_box_1 : self->flow_box_2;
     const char *target_name = (self->active_box == 1) ? "page1" : "page2";
 
-    /* Clear target box */
     GList *children = gtk_container_get_children (GTK_CONTAINER (target_box));
-    g_list_foreach (children, destroy_widget, NULL);
-    g_list_free (children);
+    GList *curr = children;
 
     int start = self->current_page * APPS_PER_PAGE;
     int end   = MIN (start + APPS_PER_PAGE, (int) self->filtered_apps->len);
 
     for (int i = start; i < end; i++) {
-        AppEntry  *entry = g_ptr_array_index (self->filtered_apps, i);
-        GtkWidget *icon  = venom_app_icon_new (entry);
-        gtk_container_add (GTK_CONTAINER (target_box), icon);
+        AppEntry *entry = g_ptr_array_index (self->filtered_apps, i);
+        if (curr) {
+            GtkWidget *flow_child = GTK_WIDGET (curr->data);
+            GtkWidget *icon = gtk_bin_get_child (GTK_BIN (flow_child));
+            if (icon && VENOM_IS_APP_ICON (icon)) {
+                venom_app_icon_set_entry (VENOM_APP_ICON (icon), entry);
+            }
+            gtk_widget_show (flow_child);
+            curr = curr->next;
+        } else {
+            GtkWidget *icon = venom_app_icon_new (entry);
+            gtk_container_add (GTK_CONTAINER (target_box), icon);
+            gtk_widget_show_all (icon);
+        }
     }
 
-    gtk_widget_show_all (target_box);
+    while (curr) {
+        gtk_widget_hide (GTK_WIDGET (curr->data));
+        curr = curr->next;
+    }
+
+    if (children) g_list_free (children);
 
     if (transition != GTK_STACK_TRANSITION_TYPE_NONE) {
         gtk_stack_set_transition_type (GTK_STACK (self->stack), transition);
@@ -224,7 +238,7 @@ venom_app_grid_init (VenomAppGrid *self)
 
     /* ── Stack (replaces Single FlowBox) ────────────────────────────── */
     self->stack = gtk_stack_new ();
-    gtk_stack_set_transition_duration (GTK_STACK (self->stack), 350);
+    gtk_stack_set_transition_duration (GTK_STACK (self->stack), 200);
     gtk_widget_set_vexpand (self->stack, TRUE);
     gtk_widget_set_hexpand (self->stack, TRUE);
 

@@ -31,11 +31,14 @@ struct _IconLoader {
 typedef struct {
     IconLoader        *loader;
     char              *resolved_path;  /* absolute file path — safe for threads */
+    char              *icon_name;
     IconReadyCallback  callback;
     gpointer           user_data;
 } AsyncTask;
 
 typedef struct {
+    IconLoader        *loader;
+    char              *icon_name;
     IconReadyCallback  callback;
     GdkPixbuf         *pixbuf;
     gpointer           user_data;
@@ -157,8 +160,12 @@ static gboolean
 idle_deliver (gpointer data)
 {
     IdleData *id = data;
+    if (id->pixbuf) {
+        lru_put (id->loader, id->icon_name, id->pixbuf);
+    }
     id->callback (id->pixbuf, id->user_data);
     if (id->pixbuf) g_object_unref (id->pixbuf);
+    g_free (id->icon_name);
     g_free (id);
     return G_SOURCE_REMOVE;
 }
@@ -180,6 +187,8 @@ thread_pool_func (gpointer task_data, gpointer user_data)
     }
 
     IdleData *id  = g_new0 (IdleData, 1);
+    id->loader    = task->loader;
+    id->icon_name = task->icon_name;
     id->callback  = task->callback;
     id->pixbuf    = pb;  /* hand ref to idle */
     id->user_data = task->user_data;
@@ -293,6 +302,7 @@ icon_loader_load_async (IconLoader       *loader,
     AsyncTask *task        = g_new0 (AsyncTask, 1);
     task->loader           = loader;
     task->resolved_path    = path;  /* may be NULL — thread handles gracefully */
+    task->icon_name        = g_strdup (icon_name);
     task->callback         = callback;
     task->user_data        = user_data;
 
@@ -302,6 +312,7 @@ icon_loader_load_async (IconLoader       *loader,
         g_warning ("IconLoader: push failed: %s", err->message);
         g_error_free (err);
         callback (NULL, user_data);
+        g_free (task->icon_name);
         g_free (task->resolved_path);
         g_free (task);
     }

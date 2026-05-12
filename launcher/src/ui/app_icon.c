@@ -235,13 +235,25 @@ GtkWidget *
 venom_app_icon_new (AppEntry *entry)
 {
     VenomAppIcon *self = g_object_new (VENOM_TYPE_APP_ICON, NULL);
+    venom_app_icon_set_entry (self, entry);
+    return GTK_WIDGET (self);
+}
+
+void
+venom_app_icon_set_entry (VenomAppIcon *self, AppEntry *entry)
+{
+    g_return_if_fail (VENOM_IS_APP_ICON (self));
     self->entry = entry;
 
     gtk_label_set_text (GTK_LABEL (self->label),
-                        entry->name ? entry->name : "");
+                        entry && entry->name ? entry->name : "");
+
+    /* Clear existing image to prevent flicker of old icon */
+    gtk_image_set_from_icon_name (GTK_IMAGE (self->image), "application-x-executable", GTK_ICON_SIZE_DIALOG);
+    gtk_image_set_pixel_size (GTK_IMAGE (self->image), ICON_LOAD_SIZE);
 
     /* Async icon load */
-    if (entry->icon_name) {
+    if (entry && entry->icon_name) {
         IconLoader  *loader = icon_loader_get ();
         IconLoadCtx *ctx    = g_new0 (IconLoadCtx, 1);
         ctx->icon = self;
@@ -252,8 +264,6 @@ venom_app_icon_new (AppEntry *entry)
         icon_loader_load_async (loader, entry->icon_name,
                                 on_icon_ready, ctx);
     }
-
-    return GTK_WIDGET (self);
 }
 
 AppEntry *

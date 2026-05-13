@@ -95,10 +95,28 @@ function defaultLayout() {
   };
 }
 
-/* ── Markup dirty ──────────────────────────────────────────────────── */
+/* ── Markup dirty & Auto-Save ──────────────────────────────────────── */
+let autoSaveTimer = null;
+
 function markDirty() {
   state.dirty = true;
   document.getElementById('dirty-badge').classList.remove('hidden');
+
+  /* Debounce auto-save so rapid UI changes (like sliders) don't spam disk */
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    autoSave();
+  }, 400);
+}
+
+function autoSave() {
+  const fullCSS = generateCSS() + '\n' + generateWindowCSS();
+  sendToC({
+    action:  'save',
+    layout:  generateLayoutJSON(),
+    css:     fullCSS,
+    state:   JSON.stringify({ styles: state.styles, panelBg: state.panelBg, winStyles: state.winStyles }),
+  });
 }
 
 /* ── Plugin lookup ─────────────────────────────────────────────────── */

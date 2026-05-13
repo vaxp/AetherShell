@@ -59,6 +59,20 @@ window._aether = {
     syncPanelBgControls();
   },
 
+  /* Called by C monitor when a .so is added / removed from the plugin dir */
+  updatePlugins(newPlugins) {
+    const prev = state.plugins.length;
+    state.plugins = newPlugins || [];
+    renderPalette();
+    const diff = state.plugins.length - prev;
+    if (diff > 0)
+      toast(`🔌 ${diff} new plugin${diff > 1 ? 's' : ''} detected`, 'success');
+    else if (diff < 0)
+      toast(`🗑️ Plugin removed — list updated`, '');
+    else
+      toast('🔌 Plugin list refreshed', '');
+  },
+
   onSaved() {
     state.dirty = false;
     document.getElementById('dirty-badge').classList.add('hidden');

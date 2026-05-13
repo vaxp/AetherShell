@@ -53,7 +53,7 @@ panel: $(SRC)
 # ── Designer ───────────────────────────────────────────────────────────────── #
 DESIGNER_SRC = designer/main.c designer/config_io.c
 DESIGNER_CFLAGS = $(shell pkg-config --cflags $(DESIGNER_PKGS)) -std=gnu11 -Idesigner
-DESIGNER_LIBS   = $(shell pkg-config --libs   $(DESIGNER_PKGS))
+DESIGNER_LIBS   = $(shell pkg-config --libs   $(DESIGNER_PKGS)) -ldl
 
 designer/aether-panel-designer: $(DESIGNER_SRC)
 	$(CC) -o designer/aether-panel-designer $(DESIGNER_SRC) \

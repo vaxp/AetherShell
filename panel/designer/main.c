@@ -8,7 +8,12 @@
 #include <json-glib/json-glib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <dlfcn.h>
+#include <dirent.h>
 #include "config_io.h"
+
+/* panel-plugin-api.h lives one level up */
+#include "../panel-plugin-api.h"
 
 #define TITLE   "AetherShell Panel Designer"
 #define W       1200
@@ -17,22 +22,179 @@
 static WebKitWebView *g_wv  = NULL;
 static char          *g_uid = NULL;   /* absolute path to designer/ui/ */
 
-/* ── Built-in plugin registry sent to JS ─────────────────────────────── */
-static const char PLUGINS_JSON[] =
-  "[{\"id\":\"aether-appmenu\",   \"name\":\"App Menu\",       \"zone\":\"left\",   \"icon\":\"🖥️\"},"
-   "{\"id\":\"aether-clipboard\", \"name\":\"Clipboard\",      \"zone\":\"left\",   \"icon\":\"📋\"},"
-   "{\"id\":\"aether-workspaces\",\"name\":\"Workspaces\",     \"zone\":\"left\",   \"icon\":\"⬛\"},"
-   "{\"id\":\"aether-clock\",     \"name\":\"Clock\",          \"zone\":\"center\", \"icon\":\"🕐\"},"
-   "{\"id\":\"aether-sni-tray\",  \"name\":\"System Tray\",    \"zone\":\"right\",  \"icon\":\"📊\"},"
-   "{\"id\":\"aether-keyboard\",  \"name\":\"Keyboard\",       \"zone\":\"right\",  \"icon\":\"⌨️\"},"
-   "{\"id\":\"aether-wifi\",      \"name\":\"Wi-Fi\",          \"zone\":\"right\",  \"icon\":\"📶\"},"
-   "{\"id\":\"aether-bt\",        \"name\":\"Bluetooth\",      \"zone\":\"right\",  \"icon\":\"🔵\"},"
-   "{\"id\":\"aether-mic\",       \"name\":\"Microphone\",     \"zone\":\"right\",  \"icon\":\"🎙️\"},"
-   "{\"id\":\"aether-volume\",    \"name\":\"Volume\",         \"zone\":\"right\",  \"icon\":\"🔊\"},"
-   "{\"id\":\"aether-battery\",   \"name\":\"Battery\",        \"zone\":\"right\",  \"icon\":\"🔋\"},"
-   "{\"id\":\"aether-search\",    \"name\":\"Search\",         \"zone\":\"right\",  \"icon\":\"🔍\"},"
-   "{\"id\":\"aether-notifs\",    \"name\":\"Notifications\",  \"zone\":\"right\",  \"icon\":\"🔔\"},"
-   "{\"id\":\"aether-cc\",        \"name\":\"Control Center\", \"zone\":\"right\",  \"icon\":\"⚙️\"}]";
+/* ── Plugin directory monitors ────────────────────────────────────── */
+static GFileMonitor *g_plugin_monitors[2]  = { NULL, NULL };
+static guint         g_plugins_refresh_id  = 0;
+
+/* ── Built-in plugin descriptors ─────────────────────────────────────── */
+typedef struct { const char *id; const char *name; const char *zone; const char *icon; } BuiltinDesc;
+static const BuiltinDesc BUILTINS[] = {
+  { "aether-appmenu",   "App Menu",       "left",   "🖥️"  },
+  { "aether-clipboard", "Clipboard",      "left",   "📋"  },
+  { "aether-workspaces","Workspaces",     "left",   "⬛"  },
+  { "aether-clock",     "Clock",          "center", "🕐"  },
+  { "aether-sni-tray",  "System Tray",    "right",  "📊"  },
+  { "aether-keyboard",  "Keyboard",       "right",  "⌨️"  },
+  { "aether-wifi",      "Wi-Fi",          "right",  "📶"  },
+  { "aether-bt",        "Bluetooth",      "right",  "🔵"  },
+  { "aether-mic",       "Microphone",     "right",  "🎙️"  },
+  { "aether-volume",    "Volume",         "right",  "🔊"  },
+  { "aether-battery",   "Battery",        "right",  "🔋"  },
+  { "aether-search",    "Search",         "right",  "🔍"  },
+  { "aether-notifs",    "Notifications",  "right",  "🔔"  },
+  { "aether-cc",        "Control Center", "right",  "⚙️"  },
+};
+
+/* ── Zone name helper ─────────────────────────────────────────────────── */
+static const char *zone_name(AetherPluginZone z)
+{
+    switch (z) {
+        case AETHER_PLUGIN_ZONE_LEFT:   return "left";
+        case AETHER_PLUGIN_ZONE_CENTER: return "center";
+        case AETHER_PLUGIN_ZONE_RIGHT:  return "right";
+        default:                        return "right";
+    }
+}
+
+/* ── JSON-escape a plain ASCII/UTF-8 string (no surrogate pairs needed) ── */
+static void json_append_str(GString *out, const char *s)
+{
+    if (!s) { g_string_append(out, "null"); return; }
+    g_string_append_c(out, '"');
+    for (; *s; s++) {
+        if      (*s == '"')  g_string_append(out, "\\\"");
+        else if (*s == '\\') g_string_append(out, "\\\\");
+        else if (*s == '\n') g_string_append(out, "\\n");
+        else if (*s == '\r') g_string_append(out, "\\r");
+        else if (*s == '\t') g_string_append(out, "\\t");
+        else                 g_string_append_c(out, *s);
+    }
+    g_string_append_c(out, '"');
+}
+
+/* ── Append one plugin JSON object to *out ────────────────────────────── */
+static void append_plugin_obj(GString    *out,
+                               const char *id,
+                               const char *name,
+                               const char *zone,
+                               const char *icon,
+                               gboolean    is_first)
+{
+    if (!is_first) g_string_append_c(out, ',');
+    g_string_append(out, "{\"id\":");
+    json_append_str(out, id);
+    g_string_append(out, ",\"name\":");
+    json_append_str(out, name ? name : id);
+    g_string_append(out, ",\"zone\":");
+    json_append_str(out, zone ? zone : "right");
+    g_string_append(out, ",\"icon\":");
+    json_append_str(out, icon && icon[0] ? icon : "🔌");
+    g_string_append_c(out, '}');
+}
+
+/* ── Scan one directory for .so plugins and append descriptors ────────── */
+static void scan_external_dir(const char *dir_path,
+                               GString    *out,
+                               GHashTable *seen,   /* already-added ids */
+                               int        *count)  /* running item count */
+{
+    if (!dir_path) return;
+
+    GDir *dir = g_dir_open(dir_path, 0, NULL);
+    if (!dir) return;
+
+    const char *name;
+    while ((name = g_dir_read_name(dir)) != NULL) {
+        if (!g_str_has_suffix(name, ".so")) continue;
+
+        char *full = g_build_filename(dir_path, name, NULL);
+
+        /* Derive plugin id from filename (strip .so) */
+        char *id = g_strdup(name);
+        char *dot = strchr(id, '.');
+        if (dot) *dot = '\0';
+
+        /* Skip if already known (built-in or previous scan dir) */
+        if (g_hash_table_contains(seen, id)) {
+            g_free(id); g_free(full);
+            continue;
+        }
+
+        /* Try to load the .so and call aether_panel_plugin_init_v3 */
+        void *handle = dlopen(full, RTLD_NOW | RTLD_LOCAL);
+        if (!handle) {
+            g_warning("[Designer] dlopen('%s'): %s", full, dlerror());
+            g_free(id); g_free(full);
+            continue;
+        }
+        dlerror();
+        AetherPanelPluginInitFnV3 fn =
+            (AetherPanelPluginInitFnV3)dlsym(handle, "aether_panel_plugin_init_v3");
+        const char *dl_err = dlerror();
+        if (dl_err || !fn) {
+            dlclose(handle);
+            g_free(id); g_free(full);
+            continue;
+        }
+
+        AetherPanelPluginAPIv3 *api = fn();
+        if (!api || api->api_version != AETHER_PANEL_PLUGIN_API_VERSION) {
+            dlclose(handle);
+            g_free(id); g_free(full);
+            continue;
+        }
+
+        /* Extract metadata */
+        const char *pname = api->name && api->name[0] ? api->name : id;
+        const char *pzone = zone_name(api->zone);
+        const char *picon = api->icon_name && api->icon_name[0] ? api->icon_name : "🔌";
+
+        append_plugin_obj(out, id, pname, pzone, picon, *count == 0);
+        (*count)++;
+
+        g_hash_table_add(seen, g_strdup(id));
+
+        dlclose(handle);
+        g_free(id);
+        g_free(full);
+    }
+    g_dir_close(dir);
+}
+
+/* ── Build the full plugins JSON array (built-ins + externals) ────────── */
+static char *build_plugins_json(void)
+{
+    GString    *out  = g_string_new("[");
+    GHashTable *seen = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    int         n    = 0;
+
+    /* 1. Built-ins */
+    for (guint i = 0; i < G_N_ELEMENTS(BUILTINS); i++) {
+        const BuiltinDesc *b = &BUILTINS[i];
+        append_plugin_obj(out, b->id, b->name, b->zone, b->icon, n == 0);
+        g_hash_table_add(seen, g_strdup(b->id));
+        n++;
+    }
+
+    /* 2. User plugin dir: ~/.config/aether/plugins/ */
+    char *user_dir = g_build_filename(g_get_user_config_dir(),
+                                       "aether", "plugins", NULL);
+    scan_external_dir(user_dir, out, seen, &n);
+    g_free(user_dir);
+
+    /* 3. Dev / relative dir next to the designer binary */
+    char *exe     = g_file_read_link("/proc/self/exe", NULL);
+    char *bin_dir = exe ? g_path_get_dirname(exe) : g_strdup(".");
+    g_free(exe);
+    char *dev_dir = g_build_filename(bin_dir, "..", "config", "aether", "plugins", NULL);
+    g_free(bin_dir);
+    scan_external_dir(dev_dir, out, seen, &n);
+    g_free(dev_dir);
+
+    g_hash_table_destroy(seen);
+    g_string_append_c(out, ']');
+    return g_string_free(out, FALSE);
+}
 
 /* ── JS helpers ──────────────────────────────────────────────────────── */
 
@@ -64,8 +226,9 @@ static char *js_escape(const char *raw)
 
 static void inject_data(void)
 {
-    char *layout = config_io_read_layout();
-    char *state  = config_io_read_designer_state();
+    char *layout      = config_io_read_layout();
+    char *state       = config_io_read_designer_state();
+    char *plugins_json = build_plugins_json();
 
     char *layout_esc = js_escape(layout);
     char *state_esc  = js_escape(state);
@@ -77,8 +240,9 @@ static void inject_data(void)
        ");",
        layout_esc,
        state  ? g_strdup_printf("JSON.parse('%s')", state_esc) : "null",
-       PLUGINS_JSON);
+       plugins_json);
 
+    g_free(plugins_json);
     g_free(layout_esc);
     g_free(state_esc);
     g_free(layout);
@@ -89,6 +253,94 @@ static void on_load_changed(WebKitWebView *wv, WebKitLoadEvent ev, gpointer _)
 {
     (void)wv; (void)_;
     if (ev == WEBKIT_LOAD_FINISHED) inject_data();
+}
+
+/* ── Plugin hot-reload ─────────────────────────────────────────────── */
+
+/* Fired by the debounce timer — rebuilds plugin list and sends to JS */
+static gboolean do_refresh_plugins(gpointer data)
+{
+    (void)data;
+    g_plugins_refresh_id = 0;
+    if (!g_wv) return G_SOURCE_REMOVE;
+
+    char *json = build_plugins_json();
+    js("if (window._aether && window._aether.updatePlugins) "
+       "window._aether.updatePlugins(%s);", json);
+    g_free(json);
+    return G_SOURCE_REMOVE;
+}
+
+/* GFileMonitor callback — called for every event in the plugin dirs */
+static void on_plugin_dir_changed(GFileMonitor      *mon,
+                                   GFile             *file,
+                                   GFile             *other,
+                                   GFileMonitorEvent  event,
+                                   gpointer           data)
+{
+    (void)mon; (void)other; (void)data;
+
+    /* Only react to .so file creation, deletion, or modification */
+    char *name = g_file_get_basename(file);
+    gboolean is_so = g_str_has_suffix(name, ".so");
+    g_free(name);
+    if (!is_so) return;
+
+    if (event != G_FILE_MONITOR_EVENT_CREATED  &&
+        event != G_FILE_MONITOR_EVENT_DELETED   &&
+        event != G_FILE_MONITOR_EVENT_CHANGED) return;
+
+    /* Debounce: coalesce rapid file-system events (e.g. copy-then-chmod) */
+    if (g_plugins_refresh_id == 0)
+        g_plugins_refresh_id = g_timeout_add(600, do_refresh_plugins, NULL);
+}
+
+/* Start watching both plugin directories */
+static void start_plugin_monitors(void)
+{
+    /* ─ 1. User config dir: ~/.config/aether/plugins/ ─ */
+    char *user_dir = g_build_filename(g_get_user_config_dir(),
+                                       "aether", "plugins", NULL);
+    g_mkdir_with_parents(user_dir, 0755);   /* ensure dir exists */
+    GFile  *f1  = g_file_new_for_path(user_dir);
+    GError *err = NULL;
+    g_plugin_monitors[0] = g_file_monitor_directory(
+        f1, G_FILE_MONITOR_NONE, NULL, &err);
+    g_object_unref(f1);
+    g_free(user_dir);
+
+    if (g_plugin_monitors[0]) {
+        g_file_monitor_set_rate_limit(g_plugin_monitors[0], 300);
+        g_signal_connect(g_plugin_monitors[0], "changed",
+                         G_CALLBACK(on_plugin_dir_changed), NULL);
+        g_debug("[Designer] Monitoring ~/.config/aether/plugins/");
+    } else {
+        if (err) { g_warning("[Designer] Plugin monitor: %s", err->message); g_error_free(err); }
+    }
+
+    /* ─ 2. Dev-relative dir (next to binary): ../config/aether/plugins/ ─ */
+    char *exe     = g_file_read_link("/proc/self/exe", NULL);
+    char *bin_dir = exe ? g_path_get_dirname(exe) : g_strdup(".");
+    g_free(exe);
+    char *dev_dir = g_build_filename(bin_dir, "..", "config", "aether", "plugins", NULL);
+    g_free(bin_dir);
+
+    if (g_file_test(dev_dir, G_FILE_TEST_IS_DIR)) {
+        GFile *f2 = g_file_new_for_path(dev_dir);
+        err = NULL;
+        g_plugin_monitors[1] = g_file_monitor_directory(
+            f2, G_FILE_MONITOR_NONE, NULL, &err);
+        g_object_unref(f2);
+        if (g_plugin_monitors[1]) {
+            g_file_monitor_set_rate_limit(g_plugin_monitors[1], 300);
+            g_signal_connect(g_plugin_monitors[1], "changed",
+                             G_CALLBACK(on_plugin_dir_changed), NULL);
+            g_debug("[Designer] Monitoring dev plugin dir: %s", dev_dir);
+        } else {
+            if (err) { g_warning("[Designer] Dev plugin monitor: %s", err->message); g_error_free(err); }
+        }
+    }
+    g_free(dev_dir);
 }
 
 /* ── JS → C message handler ──────────────────────────────────────────── */
@@ -240,7 +492,24 @@ int main(int argc, char *argv[])
     /* Load UI via the custom aether:// scheme (message handlers need a trusted origin) */
     webkit_web_view_load_uri(g_wv, "aether://ui/index.html");
 
+    /* Watch plugin directories for hot-reload */
+    start_plugin_monitors();
+
     gtk_main();
+
+    /* Cleanup monitors */
+    for (int i = 0; i < 2; i++) {
+        if (g_plugin_monitors[i]) {
+            g_file_monitor_cancel(g_plugin_monitors[i]);
+            g_object_unref(g_plugin_monitors[i]);
+            g_plugin_monitors[i] = NULL;
+        }
+    }
+    if (g_plugins_refresh_id) {
+        g_source_remove(g_plugins_refresh_id);
+        g_plugins_refresh_id = 0;
+    }
+
     g_free(g_uid);
     return 0;
 }

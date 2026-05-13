@@ -31,7 +31,7 @@
 #define DEFAULT_PANEL_HEIGHT  36
 
 /* External plugin directory — scanned for *.so at startup */
-#define EXTERNAL_PLUGIN_DIR   "/usr/share/aether-panel/plugins"
+#define EXTERNAL_PLUGIN_DIR   "config/aether/plugins"
 
 /* Installed system-wide panel layout JSON */
 #define DEFAULT_LAYOUT_JSON       "/usr/local/share/panel/panel.json"
@@ -378,8 +378,14 @@ int main(int argc, char *argv[])
     plugin_engine_init();
     builtin_plugins_register_all();
 
-    /* Scan for external .so plugins (silently skips if dir absent) */
-    plugin_engine_scan_dir(EXTERNAL_PLUGIN_DIR);
+    /* Scan for external .so plugins — check both the dev-relative dir and
+     * the canonical user config location (~/.config/aether/plugins/).     */
+    plugin_engine_scan_dir(EXTERNAL_PLUGIN_DIR);   /* relative (dev builds) */
+
+    char *user_plugin_dir = g_build_filename(g_get_user_config_dir(),
+                                             "aether", "plugins", NULL);
+    plugin_engine_scan_dir(user_plugin_dir);
+    g_free(user_plugin_dir);
 
     /* ── Create window ────────────────────────────────────────────────────── */
     GdkScreen  *screen = gdk_screen_get_default();

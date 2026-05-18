@@ -29,6 +29,7 @@ typedef struct {
 
 static WorkspaceData *s_workspace_data = NULL;
 static gboolean on_dot_click(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
+static gboolean on_workspace_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data);
 
 static void cairo_pill(cairo_t *cr, double x, double y, double w, double h) {
     double r = h / 2.0;
@@ -127,6 +128,36 @@ static gboolean on_dot_click(GtkWidget *widget, GdkEventButton *event, gpointer 
     return GDK_EVENT_STOP;
 }
 
+static gboolean on_workspace_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data) {
+    WorkspaceData *data = user_data;
+    int target_idx = data->current_workspace;
+
+    (void)widget;
+
+    if (event->direction == GDK_SCROLL_UP) {
+        target_idx--;
+    } else if (event->direction == GDK_SCROLL_DOWN) {
+        target_idx++;
+    } else if (event->direction == GDK_SCROLL_SMOOTH) {
+        if (event->delta_y < 0) {
+            target_idx--;
+        } else if (event->delta_y > 0) {
+            target_idx++;
+        }
+    }
+
+    if (target_idx < 0) target_idx = 0;
+    if (target_idx >= data->workspace_count) target_idx = data->workspace_count - 1;
+
+    if (target_idx != data->current_workspace) {
+        int target_x = target_idx % data->grid_width;
+        int target_y = target_idx / data->grid_width;
+        panel_compositor_backend_set_workspace(data->output_id, target_x, target_y);
+    }
+
+    return GDK_EVENT_STOP;
+}
+
 static void on_workspace_state_changed(const PanelWorkspaceState *state, gpointer user_data) {
     WorkspaceData *data = user_data;
     int workspace_count;
@@ -174,7 +205,9 @@ GtkWidget *create_workspaces_widget(void) {
     gtk_widget_set_app_paintable(event_box, TRUE);
     gtk_widget_set_margin_top(event_box, 4);
     gtk_widget_set_margin_bottom(event_box, 4);
+    gtk_widget_add_events(event_box, GDK_SCROLL_MASK);
     g_signal_connect(event_box, "draw", G_CALLBACK(on_container_draw), NULL);
+    g_signal_connect(event_box, "scroll-event", G_CALLBACK(on_workspace_scroll), data);
 
     data->box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     data->output_id = -1;

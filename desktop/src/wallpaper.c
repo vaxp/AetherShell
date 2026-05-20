@@ -360,6 +360,104 @@ gboolean on_layout_draw_bg(GtkWidget *widget, cairo_t *cr, gpointer data) {
             gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
             cairo_paint_with_alpha(cr, 1.0 - progress);
             cairo_restore(cr);
+        } else if (current_anim_type == 5) {
+            // 5: Blinds
+            int num_blinds = 12;
+            double blind_h = (double)screen_h / num_blinds;
+            cairo_save(cr);
+            for (int i = 0; i < num_blinds; i++) {
+                double h = blind_h * (1.0 - progress);
+                double y = i * blind_h + (blind_h - h) / 2.0;
+                cairo_rectangle(cr, 0, y, screen_w, h);
+            }
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+        } else if (current_anim_type == 6) {
+            // 6: Swipe Up
+            double y_offset = screen_h * progress;
+            cairo_save(cr);
+            cairo_translate(cr, 0, -y_offset);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            
+            if (y_offset > 0 && progress < 1.0) {
+                cairo_pattern_t *sh = cairo_pattern_create_linear(0, screen_h, 0, screen_h + 80);
+                cairo_pattern_add_color_stop_rgba(sh, 0.0, 0, 0, 0, 0.8 * (1.0 - progress));
+                cairo_pattern_add_color_stop_rgba(sh, 1.0, 0, 0, 0, 0.0);
+                cairo_rectangle(cr, 0, screen_h, screen_w, 80);
+                cairo_set_source(cr, sh);
+                cairo_fill(cr);
+                cairo_pattern_destroy(sh);
+            }
+            cairo_restore(cr);
+        } else if (current_anim_type == 7) {
+            // 7: Grid/Mosaic
+            int cols = 16;
+            int rows = 9;
+            double cell_w = (double)screen_w / cols;
+            double cell_h = (double)screen_h / rows;
+            
+            cairo_save(cr);
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
+                    double delay = ((double)(r + c) / (rows + cols)) * 0.4;
+                    double cell_p = (progress - delay) / 0.6;
+                    if (cell_p < 0.0) cell_p = 0.0;
+                    if (cell_p > 1.0) cell_p = 1.0;
+                    
+                    double scale = 1.0 - cell_p;
+                    if (scale > 0) {
+                        double cx = c * cell_w + cell_w / 2.0;
+                        double cy = r * cell_h + cell_h / 2.0;
+                        double w = cell_w * scale;
+                        double h = cell_h * scale;
+                        cairo_rectangle(cr, cx - w/2.0, cy - h/2.0, w, h);
+                    }
+                }
+            }
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+        } else if (current_anim_type == 8) {
+            // 8: Diagonal Wipe
+            double diag_dist = sqrt(screen_w*screen_w + screen_h*screen_h);
+            double dist = diag_dist * progress;
+            double angle = atan2(screen_h, screen_w);
+            
+            cairo_save(cr);
+            cairo_rotate(cr, angle);
+            cairo_rectangle(cr, dist, -diag_dist, diag_dist, diag_dist * 2);
+            cairo_rotate(cr, -angle);
+            cairo_clip(cr);
+            
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            
+            cairo_rotate(cr, angle);
+            if (dist > 0 && progress < 1.0) {
+                cairo_pattern_t *sh = cairo_pattern_create_linear(dist, 0, dist + 100, 0);
+                cairo_pattern_add_color_stop_rgba(sh, 0.0, 0, 0, 0, 0.7 * (1.0 - progress));
+                cairo_pattern_add_color_stop_rgba(sh, 1.0, 0, 0, 0, 0.0);
+                cairo_rectangle(cr, dist, -diag_dist, 100, diag_dist * 2);
+                cairo_set_source(cr, sh);
+                cairo_fill(cr);
+                cairo_pattern_destroy(sh);
+            }
+            cairo_restore(cr);
+        } else if (current_anim_type == 9) {
+            // 9: Spin & Fade
+            cairo_save(cr);
+            cairo_translate(cr, screen_w/2.0, screen_h/2.0);
+            cairo_rotate(cr, progress * G_PI); 
+            double scale = 1.0 - progress;
+            cairo_scale(cr, scale, scale);
+            cairo_translate(cr, -screen_w/2.0, -screen_h/2.0);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint_with_alpha(cr, 1.0 - progress);
+            cairo_restore(cr);
         }
     }
 

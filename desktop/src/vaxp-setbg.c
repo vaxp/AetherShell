@@ -149,7 +149,7 @@ static int get_saved_anim(void) {
         id = atoi(contents);
         g_free(contents);
     }
-    if (id < 0 || id > 4) id = 0;
+    if (id < 0 || id > 9) id = 0;
     return id;
 }
 
@@ -213,6 +213,11 @@ int main(int argc, char *argv[]) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "3. Smooth Crossfade");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "4. Wipe Right");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "5. Zoom Out & Fade");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "6. Blinds");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "7. Swipe Up");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "8. Grid/Mosaic");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "9. Diagonal Wipe");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "10. Spin & Fade");
     gtk_combo_box_set_active(GTK_COMBO_BOX(anim_combo), get_saved_anim());
     g_signal_connect(anim_combo, "changed", G_CALLBACK(on_anim_changed), NULL);
     gtk_box_pack_end(GTK_BOX(toolbar), anim_combo, FALSE, FALSE, 0);

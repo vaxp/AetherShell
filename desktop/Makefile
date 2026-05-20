@@ -25,7 +25,7 @@ MAIN_SRCS = \
 SETBG_TARGET = vaxp-setbg
 SETBG_SRC    = $(SRCDIR)/vaxp-setbg.c
 SETBG_CFLAGS = $(shell pkg-config --cflags gtk+-3.0 2>/dev/null) -Iinclude -Wall -O2
-SETBG_LDFLAGS = $(shell pkg-config --libs gtk+-3.0 2>/dev/null) -lImlib2 -lX11
+SETBG_LDFLAGS = $(shell pkg-config --libs gtk+-3.0 2>/dev/null)
 
 BIN_TARGETS = $(TARGET)
 ifneq ($(wildcard $(SETBG_SRC)),)

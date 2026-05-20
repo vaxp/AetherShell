@@ -155,6 +155,7 @@ static void build_desktop_ui(void) {
 
     g_signal_connect(main_window, "destroy", G_CALLBACK(on_main_window_destroy), NULL);
     gtk_widget_show_all(main_window);
+    init_wallpaper_monitor();
     load_saved_wallpaper();
     malloc_trim(0);
 }

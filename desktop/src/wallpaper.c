@@ -1,7 +1,7 @@
 /*
  * wallpaper.c
  * Window bootstrap, wallpaper rendering, and wallpaper picker UI.
- */
+*/
 
 #include "wallpaper.h"
 #include "desktop_config.h"
@@ -21,16 +21,39 @@ int screen_h = 0;
 static GdkPixbuf *wallpaper_pixbuf = NULL;
 static char *current_wallpaper_path = NULL;
 static gboolean monitor_signal_handlers_connected = FALSE;
+static GFileMonitor *wallpaper_monitor = NULL;
 
+static GdkPixbuf *prev_wallpaper_pixbuf = NULL;
+static double wallpaper_transition_alpha = 1.0;
+static guint tick_callback_id = 0;
+static gint64 transition_start_time = 0;
 static void load_wallpaper(const char *path);
 static GdkMonitor *get_target_monitor(GdkDisplay *display);
 static void update_desktop_geometry(void);
 static void on_monitors_changed(GdkDisplay *display, gpointer user_data);
 static void on_main_window_realize(GtkWidget *widget, gpointer user_data);
 static gboolean refresh_desktop_after_show(gpointer user_data);
-static gboolean is_image_file(const char *name);
-static void add_images_from_dir(const char *dir_path, GtkWidget *flow);
-static void on_browse_folder_clicked(GtkButton *btn, gpointer user_data);
+
+static void on_wallpaper_file_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer user_data) {
+    (void)monitor;
+    (void)file;
+    (void)other_file;
+    (void)user_data;
+    if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT || event_type == G_FILE_MONITOR_EVENT_CREATED) {
+        load_saved_wallpaper();
+    }
+}
+
+void init_wallpaper_monitor(void) {
+    GFile *file = g_file_new_for_path(WALLPAPER_CONFIG_FILE);
+    if (!wallpaper_monitor) {
+        wallpaper_monitor = g_file_monitor_file(file, G_FILE_MONITOR_NONE, NULL, NULL);
+        if (wallpaper_monitor) {
+            g_signal_connect(wallpaper_monitor, "changed", G_CALLBACK(on_wallpaper_file_changed), NULL);
+        }
+    }
+    g_object_unref(file);
+}
 
 static gboolean is_wayland_session(void) {
     GdkDisplay *display = gdk_display_get_default();
@@ -43,12 +66,44 @@ static gboolean is_wayland_session(void) {
     return FALSE;
 }
 
+static void load_wallpaper(const char *path);
+
+static gboolean on_transition_tick(GtkWidget *widget, GdkFrameClock *frame_clock, gpointer user_data) {
+    gint64 current_time = g_get_monotonic_time();
+    double elapsed = (current_time - transition_start_time) / 800000.0; // 800ms
+
+    (void)widget;
+    (void)frame_clock;
+    (void)user_data;
+
+    if (elapsed >= 1.0) {
+        wallpaper_transition_alpha = 1.0;
+        if (prev_wallpaper_pixbuf) {
+            g_object_unref(prev_wallpaper_pixbuf);
+            prev_wallpaper_pixbuf = NULL;
+        }
+        gtk_widget_queue_draw(icon_layout);
+        tick_callback_id = 0;
+        return G_SOURCE_REMOVE;
+    }
+
+    double f = elapsed - 1.0;
+    wallpaper_transition_alpha = f * f * f + 1.0;
+    
+    gtk_widget_queue_draw(icon_layout);
+    return G_SOURCE_CONTINUE;
+}
+
 static void load_wallpaper(const char *path) {
     GError *err = NULL;
     GdkPixbuf *pb;
 
     if (!path || strlen(path) == 0) return;
     if (screen_w <= 0 || screen_h <= 0) return;
+
+    if (g_strcmp0(current_wallpaper_path, path) == 0) {
+        return;
+    }
 
     pb = gdk_pixbuf_new_from_file_at_scale(path, screen_w, screen_h, FALSE, &err);
     if (!pb) {
@@ -57,14 +112,26 @@ static void load_wallpaper(const char *path) {
         return;
     }
 
-    if (wallpaper_pixbuf) g_object_unref(wallpaper_pixbuf);
+    if (wallpaper_pixbuf) {
+        if (prev_wallpaper_pixbuf) g_object_unref(prev_wallpaper_pixbuf);
+        prev_wallpaper_pixbuf = wallpaper_pixbuf;
+    }
     wallpaper_pixbuf = pb;
 
-    g_free(current_wallpaper_path);
-    current_wallpaper_path = g_strdup(path);
+    if (prev_wallpaper_pixbuf) {
+        wallpaper_transition_alpha = 0.0;
+        transition_start_time = g_get_monotonic_time();
+        if (tick_callback_id == 0 && icon_layout) {
+            tick_callback_id = gtk_widget_add_tick_callback(icon_layout, on_transition_tick, NULL, NULL);
+        }
+    } else {
+        wallpaper_transition_alpha = 1.0;
+    }
 
-    ensure_config_dir();
-    g_file_set_contents(WALLPAPER_CONFIG_FILE, path, -1, NULL);
+    if (current_wallpaper_path != path) {
+        g_free(current_wallpaper_path);
+        current_wallpaper_path = g_strdup(path);
+    }
 
     if (icon_layout) gtk_widget_queue_draw(icon_layout);
 }
@@ -170,9 +237,54 @@ gboolean on_layout_draw_bg(GtkWidget *widget, cairo_t *cr, gpointer data) {
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
+    // Draw new wallpaper at the bottom
     if (wallpaper_pixbuf) {
         gdk_cairo_set_source_pixbuf(cr, wallpaper_pixbuf, 0, 0);
         cairo_paint(cr);
+    }
+
+    // Draw old wallpaper splitting and sliding away
+    if (prev_wallpaper_pixbuf && wallpaper_transition_alpha < 1.0) {
+        double progress = wallpaper_transition_alpha;
+        double offset = (screen_w / 2.0) * progress;
+
+        // Draw shadow for Left Door
+        if (progress > 0.0) {
+            cairo_pattern_t *sh_left = cairo_pattern_create_linear(screen_w / 2.0 - offset, 0, screen_w / 2.0 - offset + 60, 0);
+            cairo_pattern_add_color_stop_rgba(sh_left, 0.0, 0, 0, 0, 0.7 * (1.0 - progress));
+            cairo_pattern_add_color_stop_rgba(sh_left, 1.0, 0, 0, 0, 0.0);
+            cairo_rectangle(cr, screen_w / 2.0 - offset, 0, 60, screen_h);
+            cairo_set_source(cr, sh_left);
+            cairo_fill(cr);
+            cairo_pattern_destroy(sh_left);
+
+            // Draw shadow for Right Door
+            cairo_pattern_t *sh_right = cairo_pattern_create_linear(screen_w / 2.0 + offset - 60, 0, screen_w / 2.0 + offset, 0);
+            cairo_pattern_add_color_stop_rgba(sh_right, 0.0, 0, 0, 0, 0.0);
+            cairo_pattern_add_color_stop_rgba(sh_right, 1.0, 0, 0, 0, 0.7 * (1.0 - progress));
+            cairo_rectangle(cr, screen_w / 2.0 + offset - 60, 0, 60, screen_h);
+            cairo_set_source(cr, sh_right);
+            cairo_fill(cr);
+            cairo_pattern_destroy(sh_right);
+        }
+
+        // Left Door
+        cairo_save(cr);
+        cairo_translate(cr, -offset, 0);
+        cairo_rectangle(cr, 0, 0, screen_w / 2.0, screen_h);
+        cairo_clip(cr);
+        gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+        cairo_paint(cr);
+        cairo_restore(cr);
+
+        // Right Door
+        cairo_save(cr);
+        cairo_translate(cr, offset, 0);
+        cairo_rectangle(cr, screen_w / 2.0, 0, screen_w / 2.0, screen_h);
+        cairo_clip(cr);
+        gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+        cairo_paint(cr);
+        cairo_restore(cr);
     }
 
     return FALSE;
@@ -235,184 +347,4 @@ void init_main_window(void) {
     update_desktop_geometry();
 }
 
-static gboolean is_image_file(const char *name) {
-    const char *exts[] = { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".svg", NULL };
-    char *lower = g_ascii_strdown(name, -1);
-    gboolean ok = FALSE;
 
-    for (int i = 0; exts[i]; i++) {
-        if (g_str_has_suffix(lower, exts[i])) {
-            ok = TRUE;
-            break;
-        }
-    }
-
-    g_free(lower);
-    return ok;
-}
-
-static void add_images_from_dir(const char *dir_path, GtkWidget *flow) {
-    GDir *dir = g_dir_open(dir_path, 0, NULL);
-    const char *fname;
-
-    if (!dir) return;
-
-    while ((fname = g_dir_read_name(dir))) {
-        char *full_path;
-        GdkPixbuf *thumb;
-        GtkWidget *img;
-        GtkWidget *vbox;
-        GtkWidget *lbl;
-
-        if (!is_image_file(fname)) continue;
-
-        full_path = g_strdup_printf("%s/%s", dir_path, fname);
-        thumb = gdk_pixbuf_new_from_file_at_scale(full_path, 180, 110, FALSE, NULL);
-        img = thumb
-            ? gtk_image_new_from_pixbuf(thumb)
-            : gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_DIALOG);
-        if (thumb) g_object_unref(thumb);
-
-        vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-        gtk_box_pack_start(GTK_BOX(vbox), img, FALSE, FALSE, 0);
-
-        lbl = gtk_label_new(fname);
-        gtk_label_set_max_width_chars(GTK_LABEL(lbl), 22);
-        gtk_label_set_ellipsize(GTK_LABEL(lbl), PANGO_ELLIPSIZE_END);
-        gtk_box_pack_start(GTK_BOX(vbox), lbl, FALSE, FALSE, 0);
-
-        g_object_set_data_full(G_OBJECT(vbox), "wallpaper-path", full_path, g_free);
-        gtk_flow_box_insert(GTK_FLOW_BOX(flow), vbox, -1);
-    }
-
-    g_dir_close(dir);
-    gtk_widget_show_all(flow);
-}
-
-static void on_browse_folder_clicked(GtkButton *btn, gpointer user_data) {
-    GtkWidget *chooser;
-    GtkWidget *flow = GTK_WIDGET(user_data);
-
-    (void)btn;
-
-    chooser = gtk_file_chooser_dialog_new(
-        "Select Wallpaper Folder",
-        GTK_WINDOW(main_window),
-        GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
-        "_Cancel", GTK_RESPONSE_CANCEL,
-        "_Open", GTK_RESPONSE_ACCEPT,
-        NULL);
-    gtk_window_set_default_size(GTK_WINDOW(chooser), 600, 400);
-
-    if (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_ACCEPT) {
-        char *folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
-        if (folder) {
-            char *existing = NULL;
-            gboolean already_saved;
-
-            add_images_from_dir(folder, flow);
-
-            g_file_get_contents(WALLPAPER_DIRS_CONFIG, &existing, NULL, NULL);
-            already_saved = existing && strstr(existing, folder) != NULL;
-            if (!already_saved) {
-                GString *buf = g_string_new(existing ? existing : "");
-                if (buf->len > 0 && buf->str[buf->len - 1] != '\n')
-                    g_string_append_c(buf, '\n');
-                g_string_append_printf(buf, "%s\n", folder);
-                ensure_config_dir();
-                g_file_set_contents(WALLPAPER_DIRS_CONFIG, buf->str, -1, NULL);
-                g_string_free(buf, TRUE);
-            }
-
-            g_free(existing);
-            g_free(folder);
-        }
-    }
-
-    gtk_widget_destroy(chooser);
-}
-
-void show_wallpaper_picker(GtkWidget *parent_widget) {
-    GtkWidget *dialog;
-    GtkWidget *content;
-    GtkWidget *toolbar;
-    GtkWidget *lbl_path;
-    GtkWidget *browse_btn;
-    GtkWidget *scroll;
-    GtkWidget *flow;
-
-    (void)parent_widget;
-
-    dialog = gtk_dialog_new_with_buttons(
-        "Change Wallpaper",
-        GTK_WINDOW(main_window),
-        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-        "_Cancel", GTK_RESPONSE_CANCEL,
-        "_Apply", GTK_RESPONSE_ACCEPT,
-        NULL);
-    gtk_window_set_default_size(GTK_WINDOW(dialog), 800, 540);
-
-    content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    gtk_container_set_border_width(GTK_CONTAINER(content), 8);
-
-    toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_widget_set_margin_bottom(toolbar, 6);
-    gtk_box_pack_start(GTK_BOX(content), toolbar, FALSE, FALSE, 0);
-
-    lbl_path = gtk_label_new("Showing: " WALLPAPER_DIR);
-    gtk_widget_set_halign(lbl_path, GTK_ALIGN_START);
-    gtk_box_pack_start(GTK_BOX(toolbar), lbl_path, TRUE, TRUE, 0);
-
-    browse_btn = gtk_button_new_with_label("📁 Add Custom Folder");
-    gtk_box_pack_end(GTK_BOX(toolbar), browse_btn, FALSE, FALSE, 0);
-
-    scroll = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
-                                   GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    gtk_widget_set_vexpand(scroll, TRUE);
-    gtk_box_pack_start(GTK_BOX(content), scroll, TRUE, TRUE, 0);
-
-    flow = gtk_flow_box_new();
-    gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(flow), 4);
-    gtk_flow_box_set_min_children_per_line(GTK_FLOW_BOX(flow), 2);
-    gtk_flow_box_set_selection_mode(GTK_FLOW_BOX(flow), GTK_SELECTION_SINGLE);
-    gtk_flow_box_set_row_spacing(GTK_FLOW_BOX(flow), 8);
-    gtk_flow_box_set_column_spacing(GTK_FLOW_BOX(flow), 8);
-    gtk_widget_set_margin_start(flow, 4);
-    gtk_widget_set_margin_end(flow, 4);
-    gtk_container_add(GTK_CONTAINER(scroll), flow);
-
-    g_signal_connect(browse_btn, "clicked", G_CALLBACK(on_browse_folder_clicked), flow);
-
-    add_images_from_dir(WALLPAPER_DIR, flow);
-
-    {
-        char *dirs_content = NULL;
-        if (g_file_get_contents(WALLPAPER_DIRS_CONFIG, &dirs_content, NULL, NULL)) {
-            gchar **lines = g_strsplit(dirs_content, "\n", -1);
-            for (int i = 0; lines[i] != NULL; i++) {
-                g_strstrip(lines[i]);
-                if (strlen(lines[i]) > 1 && lines[i][0] == '/') {
-                    add_images_from_dir(lines[i], flow);
-                }
-            }
-            g_strfreev(lines);
-            g_free(dirs_content);
-        }
-    }
-
-    gtk_widget_show_all(dialog);
-
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-        GList *selected = gtk_flow_box_get_selected_children(GTK_FLOW_BOX(flow));
-        if (selected) {
-            GtkFlowBoxChild *child = GTK_FLOW_BOX_CHILD(selected->data);
-            GtkWidget *box = gtk_bin_get_child(GTK_BIN(child));
-            const char *path = g_object_get_data(G_OBJECT(box), "wallpaper-path");
-            if (path) load_wallpaper(path);
-            g_list_free(selected);
-        }
-    }
-
-    gtk_widget_destroy(dialog);
-}

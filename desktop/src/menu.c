@@ -253,7 +253,8 @@ void on_bg_paste(GtkWidget *item, gpointer data) {
 
 void on_change_wallpaper(GtkWidget *item, gpointer data) {
     (void)item;
-    show_wallpaper_picker(GTK_WIDGET(data));
+    (void)data;
+    g_spawn_command_line_async("vaxp-setbg", NULL);
 }
 
 void on_create_folder(GtkWidget *item, gpointer data) {

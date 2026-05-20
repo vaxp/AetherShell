@@ -8,6 +8,8 @@
 
 static GtkWidget *main_window = NULL;
 
+#define ANIM_CONFIG_FILE "/home/x/.config/vaxp/wallpaper-anim"
+
 static void ensure_config_dir(void) {
     g_mkdir_with_parents("/home/x/.config/vaxp", 0755);
 }
@@ -131,6 +133,26 @@ static void set_wallpaper(const char *path) {
     g_file_set_contents(WALLPAPER_CONFIG_FILE, path, -1, NULL);
 }
 
+static void on_anim_changed(GtkComboBox *combo, gpointer user_data) {
+    (void)user_data;
+    int id = gtk_combo_box_get_active(combo);
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d\n", id);
+    ensure_config_dir();
+    g_file_set_contents(ANIM_CONFIG_FILE, buf, -1, NULL);
+}
+
+static int get_saved_anim(void) {
+    char *contents = NULL;
+    int id = 0;
+    if (g_file_get_contents(ANIM_CONFIG_FILE, &contents, NULL, NULL)) {
+        id = atoi(contents);
+        g_free(contents);
+    }
+    if (id < 0 || id > 4) id = 0;
+    return id;
+}
+
 static void on_wallpaper_selected(GtkFlowBox *box, GtkFlowBoxChild *child, gpointer user_data) {
     (void)box;
     (void)user_data;
@@ -145,6 +167,7 @@ int main(int argc, char *argv[]) {
     GtkWidget *content;
     GtkWidget *toolbar;
     GtkWidget *lbl_path;
+    GtkWidget *anim_combo;
     GtkWidget *browse_btn;
     GtkWidget *scroll;
     GtkWidget *flow;
@@ -183,6 +206,16 @@ int main(int argc, char *argv[]) {
     lbl_path = gtk_label_new("Showing: " WALLPAPER_DIR);
     gtk_widget_set_halign(lbl_path, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(toolbar), lbl_path, TRUE, TRUE, 0);
+
+    anim_combo = gtk_combo_box_text_new();
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "1. Sliding Doors");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "2. Circle Reveal");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "3. Smooth Crossfade");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "4. Wipe Right");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(anim_combo), "5. Zoom Out & Fade");
+    gtk_combo_box_set_active(GTK_COMBO_BOX(anim_combo), get_saved_anim());
+    g_signal_connect(anim_combo, "changed", G_CALLBACK(on_anim_changed), NULL);
+    gtk_box_pack_end(GTK_BOX(toolbar), anim_combo, FALSE, FALSE, 0);
 
     browse_btn = gtk_button_new_with_label("📁 Add Custom Folder");
     gtk_box_pack_end(GTK_BOX(toolbar), browse_btn, FALSE, FALSE, 0);

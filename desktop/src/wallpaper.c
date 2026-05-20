@@ -8,6 +8,7 @@
 #include <glib/gstdio.h>
 #include <string.h>
 #include <gtk-layer-shell.h>
+#include <math.h>
 
 #define WALLPAPER_CONFIG_FILE "/home/x/.config/vaxp/wallpaper"
 #define WALLPAPER_DIR "/usr/share/backgrounds"
@@ -22,6 +23,9 @@ static GdkPixbuf *wallpaper_pixbuf = NULL;
 static char *current_wallpaper_path = NULL;
 static gboolean monitor_signal_handlers_connected = FALSE;
 static GFileMonitor *wallpaper_monitor = NULL;
+
+#define ANIM_CONFIG_FILE "/home/x/.config/vaxp/wallpaper-anim"
+static int current_anim_type = 0;
 
 static GdkPixbuf *prev_wallpaper_pixbuf = NULL;
 static double wallpaper_transition_alpha = 1.0;
@@ -119,6 +123,13 @@ static void load_wallpaper(const char *path) {
     wallpaper_pixbuf = pb;
 
     if (prev_wallpaper_pixbuf) {
+        char *anim_str = NULL;
+        current_anim_type = 0;
+        if (g_file_get_contents(ANIM_CONFIG_FILE, &anim_str, NULL, NULL)) {
+            current_anim_type = atoi(anim_str);
+            g_free(anim_str);
+        }
+
         wallpaper_transition_alpha = 0.0;
         transition_start_time = g_get_monotonic_time();
         if (tick_callback_id == 0 && icon_layout) {
@@ -246,45 +257,110 @@ gboolean on_layout_draw_bg(GtkWidget *widget, cairo_t *cr, gpointer data) {
     // Draw old wallpaper splitting and sliding away
     if (prev_wallpaper_pixbuf && wallpaper_transition_alpha < 1.0) {
         double progress = wallpaper_transition_alpha;
-        double offset = (screen_w / 2.0) * progress;
 
-        // Draw shadow for Left Door
-        if (progress > 0.0) {
-            cairo_pattern_t *sh_left = cairo_pattern_create_linear(screen_w / 2.0 - offset, 0, screen_w / 2.0 - offset + 60, 0);
-            cairo_pattern_add_color_stop_rgba(sh_left, 0.0, 0, 0, 0, 0.7 * (1.0 - progress));
-            cairo_pattern_add_color_stop_rgba(sh_left, 1.0, 0, 0, 0, 0.0);
-            cairo_rectangle(cr, screen_w / 2.0 - offset, 0, 60, screen_h);
-            cairo_set_source(cr, sh_left);
-            cairo_fill(cr);
-            cairo_pattern_destroy(sh_left);
+        if (current_anim_type == 0) {
+            // 0: Sliding Doors
+            double offset = (screen_w / 2.0) * progress;
 
-            // Draw shadow for Right Door
-            cairo_pattern_t *sh_right = cairo_pattern_create_linear(screen_w / 2.0 + offset - 60, 0, screen_w / 2.0 + offset, 0);
-            cairo_pattern_add_color_stop_rgba(sh_right, 0.0, 0, 0, 0, 0.0);
-            cairo_pattern_add_color_stop_rgba(sh_right, 1.0, 0, 0, 0, 0.7 * (1.0 - progress));
-            cairo_rectangle(cr, screen_w / 2.0 + offset - 60, 0, 60, screen_h);
-            cairo_set_source(cr, sh_right);
-            cairo_fill(cr);
-            cairo_pattern_destroy(sh_right);
+            if (progress > 0.0) {
+                cairo_pattern_t *sh_left = cairo_pattern_create_linear(screen_w / 2.0 - offset, 0, screen_w / 2.0 - offset + 60, 0);
+                cairo_pattern_add_color_stop_rgba(sh_left, 0.0, 0, 0, 0, 0.7 * (1.0 - progress));
+                cairo_pattern_add_color_stop_rgba(sh_left, 1.0, 0, 0, 0, 0.0);
+                cairo_rectangle(cr, screen_w / 2.0 - offset, 0, 60, screen_h);
+                cairo_set_source(cr, sh_left);
+                cairo_fill(cr);
+                cairo_pattern_destroy(sh_left);
+
+                cairo_pattern_t *sh_right = cairo_pattern_create_linear(screen_w / 2.0 + offset - 60, 0, screen_w / 2.0 + offset, 0);
+                cairo_pattern_add_color_stop_rgba(sh_right, 0.0, 0, 0, 0, 0.0);
+                cairo_pattern_add_color_stop_rgba(sh_right, 1.0, 0, 0, 0, 0.7 * (1.0 - progress));
+                cairo_rectangle(cr, screen_w / 2.0 + offset - 60, 0, 60, screen_h);
+                cairo_set_source(cr, sh_right);
+                cairo_fill(cr);
+                cairo_pattern_destroy(sh_right);
+            }
+
+            cairo_save(cr);
+            cairo_translate(cr, -offset, 0);
+            cairo_rectangle(cr, 0, 0, screen_w / 2.0, screen_h);
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+
+            cairo_save(cr);
+            cairo_translate(cr, offset, 0);
+            cairo_rectangle(cr, screen_w / 2.0, 0, screen_w / 2.0, screen_h);
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+
+        } else if (current_anim_type == 1) {
+            // 1: Circle Reveal
+            double max_radius = sqrt(screen_w*screen_w/4.0 + screen_h*screen_h/4.0);
+            double r = max_radius * progress;
+            
+            cairo_save(cr);
+            cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
+            cairo_rectangle(cr, 0, 0, screen_w, screen_h);
+            cairo_arc(cr, screen_w/2.0, screen_h/2.0, r, 0, 2 * G_PI);
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+
+            if (r > 0) {
+                cairo_pattern_t *sh = cairo_pattern_create_radial(
+                    screen_w/2.0, screen_h/2.0, MAX(0, r - 60.0),
+                    screen_w/2.0, screen_h/2.0, r);
+                cairo_pattern_add_color_stop_rgba(sh, 0.0, 0, 0, 0, 0.0);
+                cairo_pattern_add_color_stop_rgba(sh, 1.0, 0, 0, 0, 0.7 * (1.0 - progress));
+                
+                cairo_save(cr);
+                cairo_arc(cr, screen_w/2.0, screen_h/2.0, r, 0, 2 * G_PI);
+                cairo_clip(cr);
+                cairo_set_source(cr, sh);
+                cairo_paint(cr);
+                cairo_restore(cr);
+                cairo_pattern_destroy(sh);
+            }
+        } else if (current_anim_type == 2) {
+            // 2: Smooth Crossfade
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint_with_alpha(cr, 1.0 - progress);
+
+        } else if (current_anim_type == 3) {
+            // 3: Wipe Right
+            double wipe_x = screen_w * progress;
+            
+            cairo_save(cr);
+            cairo_rectangle(cr, wipe_x, 0, screen_w - wipe_x, screen_h);
+            cairo_clip(cr);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint(cr);
+            cairo_restore(cr);
+            
+            if (wipe_x > 0 && wipe_x < screen_w) {
+                cairo_pattern_t *sh = cairo_pattern_create_linear(wipe_x, 0, wipe_x + 60, 0);
+                cairo_pattern_add_color_stop_rgba(sh, 0.0, 0, 0, 0, 0.5 * (1.0 - progress));
+                cairo_pattern_add_color_stop_rgba(sh, 1.0, 0, 0, 0, 0.0);
+                cairo_rectangle(cr, wipe_x, 0, 60, screen_h);
+                cairo_set_source(cr, sh);
+                cairo_fill(cr);
+                cairo_pattern_destroy(sh);
+            }
+        } else if (current_anim_type == 4) {
+            // 4: Zoom Out & Fade
+            cairo_save(cr);
+            cairo_translate(cr, screen_w/2.0, screen_h/2.0);
+            double scale = 1.0 - (0.5 * progress);
+            cairo_scale(cr, scale, scale);
+            cairo_translate(cr, -screen_w/2.0, -screen_h/2.0);
+            gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
+            cairo_paint_with_alpha(cr, 1.0 - progress);
+            cairo_restore(cr);
         }
-
-        // Left Door
-        cairo_save(cr);
-        cairo_translate(cr, -offset, 0);
-        cairo_rectangle(cr, 0, 0, screen_w / 2.0, screen_h);
-        cairo_clip(cr);
-        gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
-        cairo_paint(cr);
-        cairo_restore(cr);
-
-        // Right Door
-        cairo_save(cr);
-        cairo_translate(cr, offset, 0);
-        cairo_rectangle(cr, screen_w / 2.0, 0, screen_w / 2.0, screen_h);
-        cairo_clip(cr);
-        gdk_cairo_set_source_pixbuf(cr, prev_wallpaper_pixbuf, 0, 0);
-        cairo_paint(cr);
-        cairo_restore(cr);
     }
 
     return FALSE;

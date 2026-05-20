@@ -5,6 +5,19 @@ APPDIR  ?= $(PREFIX)/share/applications
 CFLAGS  = $(shell pkg-config --cflags gtk+-3.0 gio-2.0 gtk-layer-shell-0) -Iinclude -Wall -Wextra -O2
 LDFLAGS = $(shell pkg-config --libs gtk+-3.0 gio-2.0 gtk-layer-shell-0) -lm -ldl
 
+# ---- Optional: libmpv video wallpaper support ----
+MPV_CFLAGS  := $(shell pkg-config --cflags mpv 2>/dev/null)
+MPV_LDFLAGS := $(shell pkg-config --libs   mpv 2>/dev/null)
+ifneq ($(MPV_CFLAGS),)
+  CFLAGS  += $(MPV_CFLAGS)  -DHAVE_MPV
+  LDFLAGS += $(MPV_LDFLAGS)
+  MPV_SRCS = $(SRCDIR)/video_wallpaper.c
+  $(info [mpv] libmpv found — video wallpaper enabled)
+else
+  MPV_SRCS =
+  $(info [mpv] libmpv NOT found — video wallpaper disabled)
+endif
+
 SRCDIR  = src
 OBJDIR  = obj
 INCDIR  = include
@@ -15,6 +28,7 @@ MAIN_SRCS = \
 	$(SRCDIR)/desktop.c \
 	$(SRCDIR)/desktop_config.c \
 	$(SRCDIR)/wallpaper.c \
+	$(MPV_SRCS) \
 	$(SRCDIR)/filesystem.c \
 	$(SRCDIR)/icons.c \
 	$(SRCDIR)/menu.c \

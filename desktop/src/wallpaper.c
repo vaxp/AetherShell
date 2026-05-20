@@ -5,6 +5,7 @@
 
 #include "wallpaper.h"
 #include "desktop_config.h"
+#include "video_wallpaper.h"
 #include <glib/gstdio.h>
 #include <string.h>
 #include <gtk-layer-shell.h>
@@ -164,8 +165,29 @@ void load_saved_wallpaper(void) {
         }
     }
 
-    if (valid && strlen(path) > 1) load_wallpaper(path);
-    else g_warning("[Wallpaper] Saved path is invalid, ignoring: '%s'", path);
+    if (!valid || strlen(path) <= 1) {
+        g_warning("[Wallpaper] Saved path is invalid, ignoring: '%s'", path);
+        g_free(path);
+        return;
+    }
+
+    if (is_video_file(path)) {
+        /* Stop any static wallpaper rendering first */
+        if (wallpaper_pixbuf) {
+            g_object_unref(wallpaper_pixbuf);
+            wallpaper_pixbuf = NULL;
+        }
+        if (prev_wallpaper_pixbuf) {
+            g_object_unref(prev_wallpaper_pixbuf);
+            prev_wallpaper_pixbuf = NULL;
+        }
+        video_wallpaper_load(path);
+    } else {
+        /* Switching to static image — fully free mpv resources */
+        if (video_wallpaper_is_active())
+            video_wallpaper_destroy();
+        load_wallpaper(path);
+    }
 
     g_free(path);
 }
@@ -248,13 +270,17 @@ gboolean on_layout_draw_bg(GtkWidget *widget, cairo_t *cr, gpointer data) {
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
-    // Draw new wallpaper at the bottom
+    /* If a video wallpaper is active, draw it and skip static image */
+    if (video_wallpaper_is_active()) {
+        video_wallpaper_draw(cr);
+        return FALSE;
+    }
+    /* Static image wallpaper */
     if (wallpaper_pixbuf) {
         gdk_cairo_set_source_pixbuf(cr, wallpaper_pixbuf, 0, 0);
         cairo_paint(cr);
     }
 
-    // Draw old wallpaper splitting and sliding away
     if (prev_wallpaper_pixbuf && wallpaper_transition_alpha < 1.0) {
         double progress = wallpaper_transition_alpha;
 
@@ -499,6 +525,7 @@ void init_main_window(void) {
         gtk_widget_set_app_paintable(main_window, TRUE);
     }
 
+    /* Create icon layout (desktop icons / menus layer) */
     icon_layout = gtk_layout_new(NULL, NULL);
     gtk_widget_set_app_paintable(icon_layout, TRUE);
     gtk_widget_add_events(icon_layout,
@@ -516,6 +543,12 @@ void init_main_window(void) {
 
     g_signal_connect(main_window, "realize", G_CALLBACK(on_main_window_realize), NULL);
     g_signal_connect(icon_layout, "draw", G_CALLBACK(on_layout_draw_bg), NULL);
+
+    /*
+     * Initialise the video wallpaper subsystem (SW render — no GtkGLArea).
+     * If it fails we continue normally with static image wallpapers.
+     */
+    video_wallpaper_init(icon_layout);
 
     gtk_container_add(GTK_CONTAINER(main_window), icon_layout);
     update_desktop_geometry();

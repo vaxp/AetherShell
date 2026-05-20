@@ -128,31 +128,65 @@ static void add_images_from_dir(const char *dir_path, GtkWidget *flow) {
 
 /* ── Video loader (synchronous — less files expected) ──────────── */
 
+static gboolean load_next_video(gpointer user_data) {
+    DirLoader *loader = user_data;
+    const char *fname;
+
+    /* Only 1 video per tick since ffmpegthumbnailer takes time */
+    fname = g_dir_read_name(loader->dir);
+    if (!fname) {
+        g_dir_close(loader->dir);
+        g_free(loader->dir_path);
+        g_free(loader);
+        return G_SOURCE_REMOVE;
+    }
+    if (!is_video_file_ext(fname)) return G_SOURCE_CONTINUE;
+
+    char *full_path = g_strdup_printf("%s/%s", loader->dir_path, fname);
+
+    g_mkdir_with_parents("/home/x/.cache/vaxp-thumbnails", 0755);
+    char *hash = g_compute_checksum_for_string(G_CHECKSUM_MD5, full_path, -1);
+    char *thumb_path = g_strdup_printf("/home/x/.cache/vaxp-thumbnails/%s.png", hash);
+    g_free(hash);
+
+    if (!g_file_test(thumb_path, G_FILE_TEST_EXISTS)) {
+        char *cmd = g_strdup_printf("ffmpegthumbnailer -i \"%s\" -o \"%s\" -s 180 -t 5%% -q 5 -c png >/dev/null 2>&1",
+                                    full_path, thumb_path);
+        system(cmd);
+        g_free(cmd);
+    }
+
+    GdkPixbuf *thumb = gdk_pixbuf_new_from_file_at_scale(thumb_path, 180, 110, FALSE, NULL);
+    GtkWidget *img = thumb
+        ? gtk_image_new_from_pixbuf(thumb)
+        : gtk_image_new_from_icon_name("video-x-generic", GTK_ICON_SIZE_DIALOG);
+    
+    if (thumb) g_object_unref(thumb);
+    if (!thumb) gtk_image_set_pixel_size(GTK_IMAGE(img), 80);
+
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    gtk_box_pack_start(GTK_BOX(vbox), img, FALSE, FALSE, 0);
+    GtkWidget *lbl = gtk_label_new(fname);
+    gtk_label_set_max_width_chars(GTK_LABEL(lbl), 22);
+    gtk_label_set_ellipsize(GTK_LABEL(lbl), PANGO_ELLIPSIZE_END);
+    gtk_box_pack_start(GTK_BOX(vbox), lbl, FALSE, FALSE, 0);
+    
+    g_object_set_data_full(G_OBJECT(vbox), "wallpaper-path", full_path, g_free);
+    gtk_flow_box_insert(GTK_FLOW_BOX(loader->flow), vbox, -1);
+    gtk_widget_show_all(vbox);
+
+    g_free(thumb_path);
+    return G_SOURCE_CONTINUE;
+}
+
 static void add_videos_from_dir(const char *dir_path, GtkWidget *flow) {
     GDir *dir = g_dir_open(dir_path, 0, NULL);
     if (!dir) return;
-    const char *fname;
-    while ((fname = g_dir_read_name(dir)) != NULL) {
-        if (!is_video_file_ext(fname)) continue;
-
-        char *full_path = g_strdup_printf("%s/%s", dir_path, fname);
-
-        /* Use a film-strip icon as thumbnail */
-        GtkWidget *img = gtk_image_new_from_icon_name("video-x-generic",
-                                                       GTK_ICON_SIZE_DIALOG);
-        gtk_image_set_pixel_size(GTK_IMAGE(img), 80);
-
-        GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
-        gtk_box_pack_start(GTK_BOX(vbox), img, FALSE, FALSE, 0);
-        GtkWidget *lbl = gtk_label_new(fname);
-        gtk_label_set_max_width_chars(GTK_LABEL(lbl), 22);
-        gtk_label_set_ellipsize(GTK_LABEL(lbl), PANGO_ELLIPSIZE_END);
-        gtk_box_pack_start(GTK_BOX(vbox), lbl, FALSE, FALSE, 0);
-        g_object_set_data_full(G_OBJECT(vbox), "wallpaper-path", full_path, g_free);
-        gtk_flow_box_insert(GTK_FLOW_BOX(flow), vbox, -1);
-        gtk_widget_show_all(vbox);
-    }
-    g_dir_close(dir);
+    DirLoader *loader = g_new(DirLoader, 1);
+    loader->flow     = flow;
+    loader->dir_path = g_strdup(dir_path);
+    loader->dir      = dir;
+    g_idle_add(load_next_video, loader);
 }
 
 /* ── Browse-folder button ──────────────────────────────────────── */

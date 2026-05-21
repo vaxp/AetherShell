@@ -52,6 +52,8 @@ for proj in "${projects[@]}"; do
         cp "${PROJ_PATH}/osd-notify.service" "${STAGING}/usr/lib/systemd/user/"
     elif [ "${proj}" == "desktop" ]; then
         cp "${PROJ_PATH}/desktop" "${STAGING}/usr/bin/"
+        # Copy vaxp-setbg next to the desktop binary so the compositor can find it
+        cp "${PROJ_PATH}/vaxp-setbg" "${STAGING}/usr/bin/vaxp-setbg"
         mkdir -p "${STAGING}/usr/share/applications"
         cp "${PROJ_PATH}/desktop.desktop" "${STAGING}/usr/share/applications/aether-desktop.desktop"
         echo "NoDisplay=true" >> "${STAGING}/usr/share/applications/aether-desktop.desktop"

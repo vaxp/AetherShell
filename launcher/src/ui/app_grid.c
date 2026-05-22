@@ -297,3 +297,34 @@ venom_app_grid_go_prev_page (VenomAppGrid *grid)
     g_return_if_fail (VENOM_IS_APP_GRID (grid));
     on_prev_clicked (NULL, grid);
 }
+
+/**
+ * venom_app_grid_remove_app:
+ * @grid:  the grid widget
+ * @entry: the AppEntry to remove (matched by pointer)
+ *
+ * Removes @entry from the master list and refreshes the current page.
+ * The caller (AppIcon's uninstall handler) is responsible for freeing
+ * the entry once it is sure no other widget holds a reference to it —
+ * typically safe to do after the grid refresh since the page will no
+ * longer display icons that point to @entry.
+ */
+void
+venom_app_grid_remove_app (VenomAppGrid *grid, AppEntry *entry)
+{
+    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (entry != NULL);
+
+    /* Remove from master list (the GPtrArray owns the entry, so this also
+     * calls app_entry_free via the registered GDestroyNotify). */
+    g_ptr_array_remove (grid->all_apps, entry);
+
+    /* Clamp page index so we don't land on a now-empty page */
+    int new_total = MAX (1,
+        (int) ceil ((double) grid->all_apps->len / APPS_PER_PAGE));
+    if (grid->current_page >= new_total)
+        grid->current_page = new_total - 1;
+
+    /* Full rebuild of the filter with the current query (empty = show all) */
+    rebuild_filter (grid, NULL);
+}

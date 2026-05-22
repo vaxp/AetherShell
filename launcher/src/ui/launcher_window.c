@@ -382,3 +382,27 @@ venom_launcher_window_show_launcher (VenomLauncherWindow *win)
 
     venom_search_bar_grab_focus (VENOM_SEARCH_BAR (win->search_bar));
 }
+
+void
+venom_launcher_window_push_overlay (VenomLauncherWindow *win,
+                                    GtkWidget           *widget)
+{
+    g_return_if_fail (VENOM_IS_LAUNCHER_WINDOW (win));
+    g_return_if_fail (GTK_IS_WIDGET (widget));
+
+    gtk_widget_set_halign (widget, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign (widget, GTK_ALIGN_CENTER);
+
+    gtk_overlay_add_overlay (GTK_OVERLAY (win->root_overlay), widget);
+    gtk_widget_show_all (widget);
+}
+
+void
+venom_launcher_window_pop_overlay (VenomLauncherWindow *win,
+                                   GtkWidget           *widget)
+{
+    g_return_if_fail (VENOM_IS_LAUNCHER_WINDOW (win));
+    g_return_if_fail (GTK_IS_WIDGET (widget));
+
+    gtk_widget_destroy (widget);
+}

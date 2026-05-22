@@ -66,6 +66,19 @@ parse_desktop_file (const char *path, GPtrArray *out)
     /* Store the absolute path for shortcuts/uninstall */
     e->desktop_path = g_strdup (path);
 
+    /* Package name: prefer X-AppStream-Package, fallback to filename stem */
+    char *pkg = g_key_file_get_string (kf, "Desktop Entry", "X-AppStream-Package", NULL);
+    if (pkg && *pkg) {
+        e->package_name = pkg;
+    } else {
+        g_free (pkg);
+        char *basename  = g_path_get_basename (path);
+        /* strip .desktop suffix */
+        if (g_str_has_suffix (basename, ".desktop"))
+            basename[strlen (basename) - 8] = '\0';
+        e->package_name = basename;
+    }
+
     if (e->name && e->exec) {
         g_ptr_array_add (out, e);
     } else {

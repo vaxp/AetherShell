@@ -33,6 +33,7 @@ sources = files(
   'src/ui/search_bar.c',
   'src/ui/app_grid.c',
   'src/ui/launcher_window.c',
+  'src/ui/uninstall_dialog.c',
 )
 
 # ── Compiler flags ───────────────────────────────────────────────────────────

@@ -122,6 +122,37 @@ on_menu_shortcut (GtkMenuItem *item, gpointer data)
     g_free (desktop_dir);
 }
 
+/* -------------------------------------------------------------------------
+ * Uninstall
+ * ------------------------------------------------------------------------- */
+
+#include "uninstall_dialog.h"
+#include "launcher_window.h"
+#include "app_grid.h"
+
+/* Called when the dialog signals that removal is done */
+static void
+on_uninstall_done (VenomUninstallDialog *dialog,
+                   gboolean              success,
+                   gpointer              user_data)
+{
+    (void) dialog;
+    if (!success) return;
+
+    VenomAppIcon *self  = VENOM_APP_ICON (user_data);
+    AppEntry     *entry = self->entry;
+
+    /* Walk up the widget tree to find the AppGrid */
+    GtkWidget *parent = gtk_widget_get_parent (GTK_WIDGET (self));
+    while (parent && !VENOM_IS_APP_GRID (parent))
+        parent = gtk_widget_get_parent (parent);
+
+    if (parent && VENOM_IS_APP_GRID (parent)) {
+        venom_app_grid_remove_app (VENOM_APP_GRID (parent), entry);
+        self->entry = NULL;
+    }
+}
+
 static void
 on_menu_uninstall (GtkMenuItem *item, gpointer data)
 {
@@ -131,13 +162,17 @@ on_menu_uninstall (GtkMenuItem *item, gpointer data)
 
     if (!entry || !entry->desktop_path) return;
 
-    GtkWidget *toplevel = gtk_widget_get_toplevel (GTK_WIDGET (self));
-    if (GTK_IS_WINDOW (toplevel)) gtk_widget_hide (toplevel);
+    /* Find the VenomLauncherWindow (must walk up past FlowBoxChild,
+     * FlowBox → GtkStack → GtkBox → GtkOverlay → launcher window) */
+    GtkWidget *win = gtk_widget_get_toplevel (GTK_WIDGET (self));
+    if (!VENOM_IS_LAUNCHER_WINDOW (win)) return;
 
-    /* Use pkexec to prompt password and delete the .desktop file */
-    char *cmd = g_strdup_printf ("pkexec sh -c \"rm -f '%s'\"", entry->desktop_path);
-    g_spawn_command_line_async (cmd, NULL);
-    g_free (cmd);
+    /* Build overlay widget and inject it into the launcher surface */
+    GtkWidget *dialog = venom_uninstall_dialog_new (entry);
+    g_signal_connect (dialog, "uninstall-done",
+                      G_CALLBACK (on_uninstall_done), self);
+
+    venom_launcher_window_push_overlay (VENOM_LAUNCHER_WINDOW (win), dialog);
 }
 
 /* -------------------------------------------------------------------------

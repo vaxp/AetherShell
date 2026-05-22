@@ -19,6 +19,7 @@ app_entry_free (AppEntry *entry)
     g_free (entry->categories);
     g_free (entry->comment);
     g_free (entry->desktop_path);
+    g_free (entry->package_name);
     if (entry->pixbuf) g_object_unref (entry->pixbuf);
     g_free (entry);
 }

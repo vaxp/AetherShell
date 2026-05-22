@@ -14,6 +14,7 @@ typedef struct {
     char       *categories;  /* Desktop categories string */
     char       *comment;     /* Short description */
     char       *desktop_path;/* Absolute path to the original .desktop file */
+    char       *package_name;/* System package name (for apt/dpkg uninstall) */
     bool        no_display;  /* Hidden from launcher */
     GdkPixbuf  *pixbuf;      /* Loaded icon (NULL until loaded) */
 } AppEntry;

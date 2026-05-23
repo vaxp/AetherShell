@@ -74,10 +74,22 @@ static void on_menu_item_clicked(GtkButton *btn, gpointer user_data) {
         venom_power_off();
     } else if (g_strcmp0(action, "logout") == 0) {
         venom_logout();
-    } else if (g_strcmp0(action, "store") == 0) {
+    } else if (g_strcmp0(action, "lock") == 0) {
+        GError *error = NULL;
+        if (!g_spawn_command_line_async("aetherlock", &error)) {
+            g_print("Failed to launch aetherlock: %s\n", error->message);
+            g_error_free(error);
+        }
+    } else if (g_strcmp0(action, "vstore") == 0) {
         GError *error = NULL;
         if (!g_spawn_command_line_async("vstore", &error)) {
             g_print("Failed to launch vstore: %s\n", error->message);
+            g_error_free(error);
+        }
+    } else if (g_strcmp0(action, "prefs") == 0) {
+        GError *error = NULL;
+        if (!g_spawn_command_line_async("settings", &error)) {
+            g_print("Failed to launch settings: %s\n", error->message);
             g_error_free(error);
         }
     } else if (g_strcmp0(action, "about") == 0) {
@@ -178,7 +190,7 @@ GtkWidget* init_app_menu(void) {
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Restart...", "restart", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Shut Down...", "shutdown", NULL), FALSE, FALSE, 0);
     
-    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Lock Screen", "logout", "^⌘Q"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Lock Screen", "lock", "^⌘Q"), FALSE, FALSE, 0);
 
     gtk_widget_show_all(main_box);
     gtk_widget_hide(popover);

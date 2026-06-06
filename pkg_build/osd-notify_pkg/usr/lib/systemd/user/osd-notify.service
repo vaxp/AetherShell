@@ -1,5 +1,5 @@
 [Unit]
-Description=Vaxpwy OSD and Notifications Daemon
+Description=Vaxp OSD and Notifications Daemon
 After=venom-core.service
 
 [Service]

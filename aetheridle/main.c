@@ -13,6 +13,9 @@
 #include <wayland-server.h>
 #include <wayland-util.h>
 #include <wordexp.h>
+#include <limits.h>
+#include <libgen.h>
+#include <sys/inotify.h>
 #include "config.h"
 #include "ext-idle-notify-v1-client-protocol.h"
 #include "log.h"
@@ -27,6 +30,9 @@
 static struct ext_idle_notifier_v1 *idle_notifier = NULL;
 static struct wl_seat *seat = NULL;
 
+static int inotify_fd = -1;
+static struct wl_event_source *inotify_source = NULL;
+
 struct aetheridle_state {
 	struct wl_display *display;
 	struct wl_event_loop *event_loop;
@@ -40,6 +46,7 @@ struct aetheridle_state {
 	bool logind_idlehint;
 	bool timeouts_enabled;
 	bool wait;
+	char *config_path;
 } state;
 
 struct aetheridle_timeout_cmd {
@@ -129,6 +136,18 @@ static void aetheridle_finish() {
 
 	free(state.after_resume_cmd);
 	free(state.before_sleep_cmd);
+	free(state.logind_lock_cmd);
+	free(state.logind_unlock_cmd);
+	free(state.config_path);
+
+	if (inotify_source) {
+		wl_event_source_remove(inotify_source);
+		inotify_source = NULL;
+	}
+	if (inotify_fd >= 0) {
+		close(inotify_fd);
+		inotify_fd = -1;
+	}
 }
 
 void sway_terminate(int exit_code) {
@@ -189,6 +208,10 @@ static void disable_timeouts(void);
 static int sleep_lock_fd = -1;
 static struct sd_bus *bus = NULL;
 static char *session_name = NULL;
+static sd_bus_slot *sleep_slot = NULL;
+static sd_bus_slot *lock_slot = NULL;
+static sd_bus_slot *unlock_slot = NULL;
+static sd_bus_slot *property_slot = NULL;
 
 static void acquire_inhibitor_lock(const char *type, const char *mode,
 	int *fd) {
@@ -477,7 +500,10 @@ static void connect_to_bus(void) {
 }
 
 static void setup_sleep_listener(void) {
-	int ret = sd_bus_match_signal(bus, NULL, DBUS_LOGIND_SERVICE,
+	if (sleep_slot) {
+		return;
+	}
+	int ret = sd_bus_match_signal(bus, &sleep_slot, DBUS_LOGIND_SERVICE,
                 DBUS_LOGIND_PATH, DBUS_LOGIND_MANAGER_INTERFACE,
                 "PrepareForSleep", prepare_for_sleep, NULL);
 	if (ret < 0) {
@@ -489,7 +515,10 @@ static void setup_sleep_listener(void) {
 }
 
 static void setup_lock_listener(void) {
-	int ret = sd_bus_match_signal(bus, NULL, DBUS_LOGIND_SERVICE,
+	if (lock_slot) {
+		return;
+	}
+	int ret = sd_bus_match_signal(bus, &lock_slot, DBUS_LOGIND_SERVICE,
                 session_name, DBUS_LOGIND_SESSION_INTERFACE,
                 "Lock", handle_lock, NULL);
 	if (ret < 0) {
@@ -500,7 +529,10 @@ static void setup_lock_listener(void) {
 }
 
 static void setup_unlock_listener(void) {
-	int ret = sd_bus_match_signal(bus, NULL, DBUS_LOGIND_SERVICE,
+	if (unlock_slot) {
+		return;
+	}
+	int ret = sd_bus_match_signal(bus, &unlock_slot, DBUS_LOGIND_SERVICE,
                 session_name, DBUS_LOGIND_SESSION_INTERFACE,
                 "Unlock", handle_unlock, NULL);
 	if (ret < 0) {
@@ -511,7 +543,10 @@ static void setup_unlock_listener(void) {
 }
 
 static void setup_property_changed_listener(void) {
-	int ret = sd_bus_match_signal(bus, NULL, NULL,
+	if (property_slot) {
+		return;
+	}
+	int ret = sd_bus_match_signal(bus, &property_slot, NULL,
                 DBUS_LOGIND_PATH, "org.freedesktop.DBus.Properties",
                 "PropertiesChanged", handle_property_changed, NULL);
 	if (ret < 0) {
@@ -1046,36 +1081,192 @@ static int load_config(const char *config_path) {
 	return 0;
 }
 
+static void clear_config(void) {
+	struct aetheridle_timeout_cmd *cmd;
+	struct aetheridle_timeout_cmd *tmp;
+	wl_list_for_each_safe(cmd, tmp, &state.timeout_cmds, link) {
+		destroy_cmd_timer(cmd);
+		wl_list_remove(&cmd->link);
+		free(cmd->idle_cmd);
+		free(cmd->resume_cmd);
+		free(cmd);
+	}
+	free(state.after_resume_cmd);
+	state.after_resume_cmd = NULL;
+	free(state.before_sleep_cmd);
+	state.before_sleep_cmd = NULL;
+	free(state.logind_lock_cmd);
+	state.logind_lock_cmd = NULL;
+	free(state.logind_unlock_cmd);
+	state.logind_unlock_cmd = NULL;
+	state.logind_idlehint = false;
+	state.timeouts_enabled = false;
+}
+
+static void reload_config(void) {
+	aetheridle_log(LOG_DEBUG, "Clearing config for reload...");
+	clear_config();
+
+	int config_load = load_config(state.config_path);
+	if (config_load == -ENOENT) {
+		aetheridle_log(LOG_ERROR, "Config file not found during reload: %s", state.config_path);
+		return;
+	} else if (config_load == -EINVAL) {
+		aetheridle_log(LOG_ERROR, "Config file %s has errors during reload. Keeping cleared state.", state.config_path);
+		return;
+	}
+
+	aetheridle_log(LOG_INFO, "Reloaded config at %s", state.config_path);
+
+#if HAVE_SYSTEMD || HAVE_ELOGIND
+	bool need_logind = state.before_sleep_cmd || state.after_resume_cmd ||
+		state.logind_lock_cmd || state.logind_unlock_cmd ||
+		state.logind_idlehint;
+
+	if (need_logind) {
+		if (!bus) {
+			connect_to_bus();
+		}
+		setup_property_changed_listener();
+	} else {
+		if (property_slot) {
+			sd_bus_slot_unref(property_slot);
+			property_slot = NULL;
+		}
+	}
+
+	if (state.before_sleep_cmd || state.after_resume_cmd) {
+		setup_sleep_listener();
+	} else {
+		if (sleep_slot) {
+			sd_bus_slot_unref(sleep_slot);
+			sleep_slot = NULL;
+		}
+		if (sleep_lock_fd >= 0) {
+			release_inhibitor_lock(sleep_lock_fd);
+			sleep_lock_fd = -1;
+		}
+	}
+
+	if (state.logind_lock_cmd) {
+		setup_lock_listener();
+	} else {
+		if (lock_slot) {
+			sd_bus_slot_unref(lock_slot);
+			lock_slot = NULL;
+		}
+	}
+
+	if (state.logind_unlock_cmd) {
+		setup_unlock_listener();
+	} else {
+		if (unlock_slot) {
+			sd_bus_slot_unref(unlock_slot);
+			unlock_slot = NULL;
+		}
+	}
+
+	if (state.logind_idlehint) {
+		set_idle_hint(false);
+	}
+#endif
+
+	if (!wl_list_empty(&state.timeout_cmds)) {
+		enable_timeouts();
+		wl_display_roundtrip(state.display);
+	} else {
+		aetheridle_log(LOG_INFO, "No timeouts configured. Waiting for configuration updates...");
+	}
+}
+
+static int inotify_event_handler(int fd, uint32_t mask, void *data) {
+	char buffer[sizeof(struct inotify_event) + NAME_MAX + 1] __attribute__((aligned(__alignof__(struct inotify_event))));
+	ssize_t len;
+
+	while ((len = read(fd, buffer, sizeof(buffer))) > 0) {
+		char *ptr = buffer;
+		while (ptr < buffer + len) {
+			struct inotify_event *event = (struct inotify_event *)ptr;
+			if (event->len > 0) {
+				char *base_name = strdup(state.config_path);
+				if (base_name) {
+					char *base = basename(base_name);
+					if (strcmp(event->name, base) == 0) {
+						aetheridle_log(LOG_INFO, "Config file changed, reloading...");
+						reload_config();
+					}
+					free(base_name);
+				}
+			}
+			ptr += sizeof(struct inotify_event) + event->len;
+		}
+	}
+	if (len < 0 && errno != EAGAIN) {
+		aetheridle_log(LOG_ERROR, "Failed to read inotify events: %s", strerror(errno));
+	}
+	return 0;
+}
+
+static void setup_config_watch(void) {
+	if (!state.config_path) {
+		return;
+	}
+
+	inotify_fd = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
+	if (inotify_fd < 0) {
+		aetheridle_log(LOG_ERROR, "Failed to initialize inotify: %s", strerror(errno));
+		return;
+	}
+
+	char *dir_path = strdup(state.config_path);
+	if (!dir_path) {
+		close(inotify_fd);
+		inotify_fd = -1;
+		return;
+	}
+	char *dir = dirname(dir_path);
+
+	int wd = inotify_add_watch(inotify_fd, dir, IN_CLOSE_WRITE | IN_MOVED_TO);
+	free(dir_path);
+
+	if (wd < 0) {
+		aetheridle_log(LOG_ERROR, "Failed to watch config directory: %s", strerror(errno));
+		close(inotify_fd);
+		inotify_fd = -1;
+		return;
+	}
+
+	inotify_source = wl_event_loop_add_fd(state.event_loop, inotify_fd,
+		WL_EVENT_READABLE, inotify_event_handler, NULL);
+}
+
 
 int main(int argc, char *argv[]) {
 	aetheridle_init();
-	char *config_path = NULL;
-	if (parse_args(argc, argv, &config_path) != 0) {
+	if (parse_args(argc, argv, &state.config_path) != 0) {
 		aetheridle_finish();
-		free(config_path);
 		return -1;
 	}
 
-	if (!config_path) {
-		config_path = get_config_path();
+	if (!state.config_path) {
+		state.config_path = get_config_path();
 	}
 
 	int config_load = -ENOENT;
-	if (config_path) {
-		config_load = load_config(config_path);
+	if (state.config_path) {
+		config_load = load_config(state.config_path);
 	}
 	if (config_load == -ENOENT) {
 		aetheridle_log(LOG_DEBUG, "No config file found.");
 	} else if (config_load == -EINVAL) {
-		aetheridle_log(LOG_ERROR, "Config file %s has errors, exiting.", config_path);
+		aetheridle_log(LOG_ERROR, "Config file %s has errors, exiting.", state.config_path);
 		exit(-1);
 	} else {
-		aetheridle_log(LOG_DEBUG, "Loaded config at %s", config_path);
+		aetheridle_log(LOG_DEBUG, "Loaded config at %s", state.config_path);
 	}
 
-	free(config_path);
-
 	state.event_loop = wl_event_loop_create();
+	setup_config_watch();
 
 	wl_event_loop_add_signal(state.event_loop, SIGINT, handle_signal, NULL);
 	wl_event_loop_add_signal(state.event_loop, SIGTERM, handle_signal, NULL);

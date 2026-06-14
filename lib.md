@@ -1,10 +1,25 @@
-sudo apt install libgtk-layer-shell0 slurp
+sudo apt install libgtk-layer-shell0 slurp grim
 
 
 للبناء 
 
-sudo apt install libavutil-dev libavcodec-dev libavformat-dev libswscale-dev libavdevice-dev libavfilter-dev build-essential pkg-config cmake libgtk-3-dev  libgtk-layer-shell-dev libgtk-4-dev libsystemd-dev scdoc libpam0g-dev grim
-sudo apt install \
+sudo apt install
+libavutil-dev \
+libavcodec-dev \
+libavformat-dev \
+libswscale-dev \
+libavdevice-dev \
+libavfilter-dev \
+build-essential \
+pkg-config cmake \
+libgtk-3-dev  \
+libgtk-layer-shell-dev \
+libgtk-4-dev \
+libsystemd-dev \
+scdoc \
+libpam0g-dev \ 
+grim \
+slurp \
 libglib2.0-dev \
 libpolkit-agent-1-dev \
 libjson-glib-dev \
@@ -12,5 +27,5 @@ libpulse-dev \
 libxkbregistry-dev \
 libdbusmenu-glib-dev \
 libgtk-3-dev \
-libgtk-layer-shell-dev
+libgtk-layer-shell-dev \
 

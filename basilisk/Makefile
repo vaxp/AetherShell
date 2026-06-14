@@ -27,5 +27,6 @@ clean:
 	@echo "🧹 Cleaned."
 
 install: $(TARGET)
-	install -Dm755 $(TARGET) /usr/bin/$(TARGET)
-	@echo "✅ Installed to /usr/bin/$(TARGET)"
+	install -Dm755 $(TARGET) $(DESTDIR)/usr/bin/$(TARGET)
+	@echo "✅ Installed to $(DESTDIR)/usr/bin/$(TARGET)"
+

@@ -152,6 +152,20 @@ void on_item_delete(GtkWidget *menuitem, gpointer data) {
 gboolean on_item_button_press(GtkWidget *widget, GdkEventButton *event, gpointer data) {
     char *uri = (char *)data;
 
+    if (color_picker_active) {
+        if (event->type == GDK_BUTTON_PRESS) {
+            if (event->button == 1) {
+                int x_main, y_main;
+                gtk_widget_translate_coordinates(widget, main_window, event->x, event->y, &x_main, &y_main);
+                pick_color_at(x_main, y_main);
+                return TRUE;
+            } else if (event->button == 3) {
+                deactivate_color_picker();
+                return TRUE;
+            }
+        }
+    }
+
     if (event->type == GDK_BUTTON_PRESS && event->button == 1) {
         if (!is_selected(widget)) {
             if (!(event->state & GDK_CONTROL_MASK)) deselect_all();
@@ -310,12 +324,106 @@ void on_open_terminal(GtkWidget *item, gpointer data) {
     (void)item;
     (void)data;
 
-    if (!desktop_path) return;
+    if (!desktop_path) {
+        desktop_path = g_strdup(g_get_home_dir());
+    }
 
-    {
-        char *cmd = g_strdup_printf("exo-open --launch TerminalEmulator --working-directory=%s", desktop_path);
-        g_spawn_command_line_async(cmd, NULL);
-        g_free(cmd);
+    const char *terminals[] = {
+        "vater",
+        "alacritty",
+        "kitty",
+        "gnome-terminal",
+        "konsole",
+        "xfce4-terminal",
+        "wezterm",
+        "foot",
+        "xterm"
+    };
+
+    char *found_term = NULL;
+    for (size_t i = 0; i < sizeof(terminals) / sizeof(terminals[0]); i++) {
+        char *path = g_find_program_in_path(terminals[i]);
+        if (path) {
+            found_term = g_strdup(terminals[i]);
+            g_free(path);
+            break;
+        }
+    }
+
+    if (!found_term) {
+        char *path = g_find_program_in_path("x-terminal-emulator");
+        if (path) {
+            found_term = g_strdup("x-terminal-emulator");
+            g_free(path);
+        } else {
+            path = g_find_program_in_path("exo-open");
+            if (path) {
+                found_term = g_strdup("exo-open");
+                g_free(path);
+            }
+        }
+    }
+
+    if (found_term) {
+        GError *error = NULL;
+        GPtrArray *argv_array = g_ptr_array_new();
+
+        g_ptr_array_add(argv_array, (gpointer)found_term);
+
+        if (g_strcmp0(found_term, "vater") == 0) {
+            // Launch vater directly with no working directory or path arguments
+        } else if (g_strcmp0(found_term, "alacritty") == 0) {
+            g_ptr_array_add(argv_array, "--working-directory");
+            g_ptr_array_add(argv_array, desktop_path);
+        } else if (g_strcmp0(found_term, "kitty") == 0) {
+            g_ptr_array_add(argv_array, "--directory");
+            g_ptr_array_add(argv_array, desktop_path);
+        } else if (g_strcmp0(found_term, "gnome-terminal") == 0) {
+            char *arg = g_strdup_printf("--working-directory=%s", desktop_path);
+            g_ptr_array_add(argv_array, arg);
+        } else if (g_strcmp0(found_term, "konsole") == 0) {
+            g_ptr_array_add(argv_array, "--workdir");
+            g_ptr_array_add(argv_array, desktop_path);
+        } else if (g_strcmp0(found_term, "xfce4-terminal") == 0) {
+            char *arg = g_strdup_printf("--working-directory=%s", desktop_path);
+            g_ptr_array_add(argv_array, arg);
+        } else if (g_strcmp0(found_term, "wezterm") == 0) {
+            g_ptr_array_add(argv_array, "start");
+            g_ptr_array_add(argv_array, "--cwd");
+            g_ptr_array_add(argv_array, desktop_path);
+        } else if (g_strcmp0(found_term, "foot") == 0) {
+            g_ptr_array_add(argv_array, "-D");
+            g_ptr_array_add(argv_array, desktop_path);
+        } else if (g_strcmp0(found_term, "exo-open") == 0) {
+            g_ptr_array_add(argv_array, "--launch");
+            g_ptr_array_add(argv_array, "TerminalEmulator");
+            char *arg = g_strdup_printf("--working-directory=%s", desktop_path);
+            g_ptr_array_add(argv_array, arg);
+        } else if (g_strcmp0(found_term, "x-terminal-emulator") == 0) {
+            char *arg = g_strdup_printf("--working-directory=%s", desktop_path);
+            g_ptr_array_add(argv_array, arg);
+        }
+
+        g_ptr_array_add(argv_array, NULL);
+
+        g_spawn_async(NULL, (char **)argv_array->pdata, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error);
+
+        if (error) {
+            g_warning("[Terminal] Failed to launch terminal %s: %s", found_term, error->message);
+            g_error_free(error);
+        }
+
+        // Free dynamically allocated arguments
+        for (guint i = 1; i < argv_array->len - 1; i++) {
+            char *arg = g_ptr_array_index(argv_array, i);
+            if (arg && g_str_has_prefix(arg, "--working-directory=")) {
+                g_free(arg);
+            }
+        }
+        g_ptr_array_free(argv_array, TRUE);
+        g_free(found_term);
+    } else {
+        g_warning("[Terminal] No suitable terminal emulator found.");
     }
 
     g_free(desktop_path);

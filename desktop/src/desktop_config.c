@@ -7,29 +7,37 @@
 #include <glib/gstdio.h>
 #include <string.h>
 
-#define MODE_CONFIG_FILE "/home/x/.config/vaxp/desktop-mode"
+char *get_vaxp_config_path(const char *filename) {
+    return g_build_filename(g_get_user_config_dir(), "vaxp", filename, NULL);
+}
+
+char *get_vaxp_cache_path(const char *filename) {
+    return g_build_filename(g_get_user_cache_dir(), "vaxp-thumbnails", filename, NULL);
+}
 
 void ensure_config_dir(void) {
-    g_mkdir_with_parents("/home/x/.config/vaxp", 0755);
+    char *dir = g_build_filename(g_get_user_config_dir(), "vaxp", NULL);
+    g_mkdir_with_parents(dir, 0755);
+    g_free(dir);
 }
 
 DesktopMode get_current_desktop_mode(void) {
     char *contents = NULL;
     gsize length = 0;
+    char *mode_config = get_vaxp_config_path("desktop-mode");
+    DesktopMode mode = MODE_NORMAL;
 
-    if (g_file_get_contents(MODE_CONFIG_FILE, &contents, &length, NULL)) {
+    if (g_file_get_contents(mode_config, &contents, &length, NULL)) {
         if (g_str_has_prefix(contents, "work")) {
-            g_free(contents);
-            return MODE_WORK;
-        }
-        if (g_str_has_prefix(contents, "widgets")) {
-            g_free(contents);
-            return MODE_WIDGETS;
+            mode = MODE_WORK;
+        } else if (g_str_has_prefix(contents, "widgets")) {
+            mode = MODE_WIDGETS;
         }
         g_free(contents);
     }
 
-    return MODE_NORMAL;
+    g_free(mode_config);
+    return mode;
 }
 
 void set_current_desktop_mode(DesktopMode mode) {
@@ -40,35 +48,33 @@ void set_current_desktop_mode(DesktopMode mode) {
     if (mode == MODE_WORK) str = "work";
     else if (mode == MODE_WIDGETS) str = "widgets";
 
-    g_file_set_contents(MODE_CONFIG_FILE, str, -1, NULL);
+    char *mode_config = get_vaxp_config_path("desktop-mode");
+    g_file_set_contents(mode_config, str, -1, NULL);
+    g_free(mode_config);
 }
 
 DesktopSortMode get_current_sort_mode(void) {
     char *contents = NULL;
     gsize length = 0;
+    char *sort_config = get_vaxp_config_path("desktop-sort");
+    DesktopSortMode mode = SORT_MANUAL;
 
-    if (g_file_get_contents(SORT_CONFIG_FILE, &contents, &length, NULL)) {
+    if (g_file_get_contents(sort_config, &contents, &length, NULL)) {
         g_strstrip(contents);
         if (g_strcmp0(contents, "name") == 0) {
-            g_free(contents);
-            return SORT_NAME;
-        }
-        if (g_strcmp0(contents, "type") == 0) {
-            g_free(contents);
-            return SORT_TYPE;
-        }
-        if (g_strcmp0(contents, "date-modified") == 0) {
-            g_free(contents);
-            return SORT_DATE_MODIFIED;
-        }
-        if (g_strcmp0(contents, "size") == 0) {
-            g_free(contents);
-            return SORT_SIZE;
+            mode = SORT_NAME;
+        } else if (g_strcmp0(contents, "type") == 0) {
+            mode = SORT_TYPE;
+        } else if (g_strcmp0(contents, "date-modified") == 0) {
+            mode = SORT_DATE_MODIFIED;
+        } else if (g_strcmp0(contents, "size") == 0) {
+            mode = SORT_SIZE;
         }
         g_free(contents);
     }
 
-    return SORT_MANUAL;
+    g_free(sort_config);
+    return mode;
 }
 
 void set_current_sort_mode(DesktopSortMode mode) {
@@ -81,7 +87,9 @@ void set_current_sort_mode(DesktopSortMode mode) {
     else if (mode == SORT_DATE_MODIFIED) str = "date-modified";
     else if (mode == SORT_SIZE) str = "size";
 
-    g_file_set_contents(SORT_CONFIG_FILE, str, -1, NULL);
+    char *sort_config = get_vaxp_config_path("desktop-sort");
+    g_file_set_contents(sort_config, str, -1, NULL);
+    g_free(sort_config);
 }
 
 void sort_mode_to_markup(DesktopSortMode target_mode, GtkWidget *item) {
@@ -116,13 +124,15 @@ char *get_current_desktop_path(void) {
 void save_item_position(const char *filename, int x, int y) {
     GKeyFile *key_file = g_key_file_new();
     char *y_key = g_strdup_printf("%s_y", filename);
+    char *config_file = get_vaxp_config_path("desktop-items.ini");
 
     ensure_config_dir();
-    g_key_file_load_from_file(key_file, CONFIG_FILE, G_KEY_FILE_NONE, NULL);
+    g_key_file_load_from_file(key_file, config_file, G_KEY_FILE_NONE, NULL);
     g_key_file_set_integer(key_file, "Positions", filename, x);
     g_key_file_set_integer(key_file, "Positions", y_key, y);
-    g_key_file_save_to_file(key_file, CONFIG_FILE, NULL);
+    g_key_file_save_to_file(key_file, config_file, NULL);
 
+    g_free(config_file);
     g_free(y_key);
     g_key_file_free(key_file);
 }
@@ -131,10 +141,12 @@ gboolean get_item_position(const char *filename, int *x, int *y) {
     GKeyFile *key_file = g_key_file_new();
     GError *err = NULL;
     char *y_key = g_strdup_printf("%s_y", filename);
+    char *config_file = get_vaxp_config_path("desktop-items.ini");
     int px;
     int py;
 
-    if (!g_key_file_load_from_file(key_file, CONFIG_FILE, G_KEY_FILE_NONE, NULL)) {
+    if (!g_key_file_load_from_file(key_file, config_file, G_KEY_FILE_NONE, NULL)) {
+        g_free(config_file);
         g_free(y_key);
         g_key_file_free(key_file);
         return FALSE;
@@ -143,6 +155,7 @@ gboolean get_item_position(const char *filename, int *x, int *y) {
     px = g_key_file_get_integer(key_file, "Positions", filename, &err);
     if (err) {
         g_error_free(err);
+        g_free(config_file);
         g_free(y_key);
         g_key_file_free(key_file);
         return FALSE;
@@ -152,6 +165,7 @@ gboolean get_item_position(const char *filename, int *x, int *y) {
     py = g_key_file_get_integer(key_file, "Positions", y_key, &err);
     if (err) {
         g_error_free(err);
+        g_free(config_file);
         g_free(y_key);
         g_key_file_free(key_file);
         return FALSE;
@@ -160,6 +174,7 @@ gboolean get_item_position(const char *filename, int *x, int *y) {
     *x = px;
     *y = py;
 
+    g_free(config_file);
     g_free(y_key);
     g_key_file_free(key_file);
     return TRUE;

@@ -11,9 +11,7 @@
 #include <gtk-layer-shell.h>
 #include <math.h>
 
-#define WALLPAPER_CONFIG_FILE "/home/x/.config/vaxp/wallpaper"
 #define WALLPAPER_DIR "/usr/share/backgrounds"
-#define WALLPAPER_DIRS_CONFIG "/home/x/.config/vaxp/wallpaper-dirs"
 
 GtkWidget *main_window = NULL;
 GtkWidget *icon_layout = NULL;
@@ -25,7 +23,7 @@ static char *current_wallpaper_path = NULL;
 static gboolean monitor_signal_handlers_connected = FALSE;
 static GFileMonitor *wallpaper_monitor = NULL;
 
-#define ANIM_CONFIG_FILE "/home/x/.config/vaxp/wallpaper-anim"
+
 static int current_anim_type = 0;
 
 static GdkPixbuf *prev_wallpaper_pixbuf = NULL;
@@ -50,7 +48,9 @@ static void on_wallpaper_file_changed(GFileMonitor *monitor, GFile *file, GFile 
 }
 
 void init_wallpaper_monitor(void) {
-    GFile *file = g_file_new_for_path(WALLPAPER_CONFIG_FILE);
+    char *path = get_vaxp_config_path("wallpaper");
+    GFile *file = g_file_new_for_path(path);
+    g_free(path);
     if (!wallpaper_monitor) {
         wallpaper_monitor = g_file_monitor_file(file, G_FILE_MONITOR_NONE, NULL, NULL);
         if (wallpaper_monitor) {
@@ -126,10 +126,12 @@ static void load_wallpaper(const char *path) {
     if (prev_wallpaper_pixbuf) {
         char *anim_str = NULL;
         current_anim_type = 0;
-        if (g_file_get_contents(ANIM_CONFIG_FILE, &anim_str, NULL, NULL)) {
+        char *anim_config = get_vaxp_config_path("wallpaper-anim");
+        if (g_file_get_contents(anim_config, &anim_str, NULL, NULL)) {
             current_anim_type = atoi(anim_str);
             g_free(anim_str);
         }
+        g_free(anim_config);
 
         wallpaper_transition_alpha = 0.0;
         transition_start_time = g_get_monotonic_time();
@@ -152,9 +154,13 @@ void load_saved_wallpaper(void) {
     char *path = NULL;
     gsize len = 0;
     gboolean valid;
+    char *wallpaper_config = get_vaxp_config_path("wallpaper");
 
-    if (!g_file_get_contents(WALLPAPER_CONFIG_FILE, &path, &len, NULL))
+    if (!g_file_get_contents(wallpaper_config, &path, &len, NULL)) {
+        g_free(wallpaper_config);
         return;
+    }
+    g_free(wallpaper_config);
 
     g_strstrip(path);
 

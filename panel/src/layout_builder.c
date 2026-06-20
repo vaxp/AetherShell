@@ -94,12 +94,30 @@ static GtkWidget *build_pill(JsonObject *pill_obj)
 
     GtkStyleContext *sc = gtk_widget_get_style_context(pill);
     gtk_style_context_add_class(sc, "aether-pill");
-
+    const char *id = NULL;
     if (json_object_has_member(pill_obj, "id")) {
         const char *id = json_object_get_string_member(pill_obj, "id");
         if (id && id[0] != '\0') {
             gtk_widget_set_name(pill, id);
             gtk_style_context_add_class(sc, id);
+        }
+    }
+    if (json_object_has_member(pill_obj, "border_color")) {
+        const char *border_color = json_object_get_string_member(pill_obj, "border_color");
+        if (border_color && border_color[0] != '\0') {
+            int border_width = obj_get_int(pill_obj, "border_width", 1);
+            int border_radius = obj_get_int(pill_obj, "border_radius", 14);
+            GtkCssProvider *provider = gtk_css_provider_new();
+            char *css = NULL;
+            if (id && id[0] != '\0') {
+                css = g_strdup_printf("#%s { border: %dpx solid %s; border-radius: %dpx; }", id, border_width, border_color, border_radius);
+            } else {
+                css = g_strdup_printf(".aether-pill { border: %dpx solid %s; border-radius: %dpx; }", border_width, border_color, border_radius);
+            }
+            gtk_css_provider_load_from_data(provider, css, -1, NULL);
+            gtk_style_context_add_provider(sc, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 20);
+            g_free(css);
+            g_object_unref(provider);
         }
     }
 

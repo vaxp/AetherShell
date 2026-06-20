@@ -1,6 +1,12 @@
-#
-# PAM configuration file for the aetherlock screen locker. By default, it includes
-# the 'login' configuration file (see /etc/pam.d/login)
-#
+# /etc/pam.d/aetherlock
 
-auth include login
+# 1. التحقق من كلمة المرور عبر النظام الأساسي
+auth        include     system-auth
+
+# 2. أخذ كلمة المرور التي تم إدخالها للتو وتمريرها للمحفظة لفك تشفيرها!
+auth        optional    pam_gnome_keyring.so
+
+# 3. إعدادات الحساب والجلسات القياسية
+account     include     system-auth
+password    include     system-auth
+session     include     system-auth

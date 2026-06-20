@@ -15,12 +15,15 @@ extern double current_x;
 extern double current_y;
 extern gboolean is_selecting;
 extern GList *selected_items;
+extern gboolean color_picker_active;
 
 /* Function Declarations */
 gboolean is_selected(GtkWidget *item);
 void select_item(GtkWidget *item);
 void deselect_item(GtkWidget *item);
 void deselect_all(void);
+void deactivate_color_picker(void);
+void pick_color_at(double x, double y);
 
 /* Drawing and Event Functions */
 gboolean on_layout_draw_fg(GtkWidget *widget, cairo_t *cr, gpointer data);

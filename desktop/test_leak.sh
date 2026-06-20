@@ -4,10 +4,10 @@ PID=$!
 echo "Waiting for desktop to initialize..."
 sleep 3
 echo "Loading video 1..."
-echo "/home/x/Pictures/vaxp-will/hunt-showdown-dark-ritual-skull-wallpaperwaves-com.mp4" > ~/.config/vaxp/wallpaper
+echo "$HOME/Pictures/vaxp-will/hunt-showdown-dark-ritual-skull-wallpaperwaves-com.mp4" > ~/.config/vaxp/wallpaper
 sleep 4
 echo "Switching to video 2..."
-echo "/home/x/Videos/Recording_2026-05-20_14-37-10.mp4" > ~/.config/vaxp/wallpaper
+echo "$HOME/Videos/Recording_2026-05-20_14-37-10.mp4" > ~/.config/vaxp/wallpaper
 sleep 4
 echo "Switching to static image..."
 echo "" > ~/.config/vaxp/wallpaper

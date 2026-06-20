@@ -29,7 +29,68 @@ function defaultStyle(pillId) {
     borderOn:    false,
     borderColor: '#ffffff',
     borderAlpha: 15,
+    borderWidth: 1,
   };
+}
+
+function syncStylesFromLayout() {
+  for (const zone of ['left', 'center', 'right']) {
+    const pills = state.layout.layout[zone] || [];
+    for (const pill of pills) {
+      if (!pill.id) continue;
+      if (!state.styles[pill.id]) {
+        state.styles[pill.id] = defaultStyle(pill.id);
+      }
+      const s = state.styles[pill.id];
+      if (pill.border_color) {
+        s.borderOn = true;
+        if (pill.border_color.startsWith('rgba')) {
+          const match = pill.border_color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+          if (match) {
+            const r = parseInt(match[1]).toString(16).padStart(2, '0');
+            const g = parseInt(match[2]).toString(16).padStart(2, '0');
+            const b = parseInt(match[3]).toString(16).padStart(2, '0');
+            s.borderColor = `#${r}${g}${b}`;
+            s.borderAlpha = Math.round(parseFloat(match[4]) * 100);
+          }
+        } else {
+          s.borderColor = pill.border_color;
+          s.borderAlpha = 100;
+        }
+      }
+      if (pill.border_width !== undefined) {
+        s.borderWidth = pill.border_width;
+      }
+      if (pill.border_radius !== undefined) {
+        s.radius = pill.border_radius;
+      }
+    }
+  }
+}
+
+function syncLayoutFromStyles() {
+  for (const zone of ['left', 'center', 'right']) {
+    const pills = state.layout.layout[zone] || [];
+    for (const pill of pills) {
+      if (!pill.id) continue;
+      const s = state.styles[pill.id];
+      if (s) {
+        if (s.borderOn) {
+          if (s.borderAlpha < 100) {
+            const [r, g, b] = hexToRgb(s.borderColor);
+            pill.border_color = `rgba(${r}, ${g}, ${b}, ${(s.borderAlpha / 100).toFixed(2)})`;
+          } else {
+            pill.border_color = s.borderColor;
+          }
+          pill.border_width = s.borderWidth || 1;
+        } else {
+          delete pill.border_color;
+          delete pill.border_width;
+        }
+        pill.border_radius = s.radius;
+      }
+    }
+  }
 }
 
 /* ── C bridge ──────────────────────────────────────────────────────── */
@@ -52,6 +113,8 @@ window._aether = {
       state.panelBg   = savedState.panelBg   || state.panelBg;
       state.winStyles = savedState.winStyles || {};
     }
+
+    syncStylesFromLayout();
 
     renderPalette();
     renderZones();
@@ -110,6 +173,7 @@ function markDirty() {
 }
 
 function autoSave() {
+  syncLayoutFromStyles();
   const fullCSS = generateCSS() + '\n' + generateWindowCSS();
   sendToC({
     action:  'save',
@@ -256,6 +320,7 @@ function showInspector(pillId) {
   document.getElementById('prop-border-on').checked = s.borderOn;
   setEl('prop-border-color',   s.borderColor);
   setRange('prop-border-alpha','prop-border-alpha-val', s.borderAlpha, '%');
+  setRange('prop-border-width','prop-border-width-val', s.borderWidth || 1, 'px');
 }
 
 function setEl(id, val)  { const e = document.getElementById(id); if (e) e.value = val; }
@@ -280,6 +345,7 @@ function wireInspector() {
     ['prop-margin-h',     'prop-margin-h-val',      'px', 'marginH'],
     ['prop-padding',      'prop-padding-val',       'px', 'paddingH'],
     ['prop-border-alpha', 'prop-border-alpha-val',  '%',  'borderAlpha'],
+    ['prop-border-width', 'prop-border-width-val',  'px', 'borderWidth'],
   ];
 
   for (const [id, valId, unit, prop] of controls) {
@@ -287,6 +353,10 @@ function wireInspector() {
       document.getElementById(valId).textContent = this.value + unit;
       if (state.selectedPill) {
         state.styles[state.selectedPill][prop] = Number(this.value);
+        if (prop === 'borderAlpha' || prop === 'borderWidth') {
+          state.styles[state.selectedPill].borderOn = true;
+          document.getElementById('prop-border-on').checked = true;
+        }
         onStyleChange();
       }
     });
@@ -309,6 +379,8 @@ function wireInspector() {
   document.getElementById('prop-border-color').addEventListener('input', function() {
     if (state.selectedPill) {
       state.styles[state.selectedPill].borderColor = this.value;
+      state.styles[state.selectedPill].borderOn = true;
+      document.getElementById('prop-border-on').checked = true;
       onStyleChange();
     }
   });
@@ -368,8 +440,9 @@ function generateCSS() {
   /* Per-pill */
   for (const [pillId, s] of Object.entries(state.styles)) {
     if (!s) continue;
+    const borderWidth = s.borderWidth !== undefined ? s.borderWidth : 1;
     const border = s.borderOn
-      ? `\n    border: 1px solid ${rgba(s.borderColor, s.borderAlpha)};`
+      ? `\n    border: ${borderWidth}px solid ${rgba(s.borderColor, s.borderAlpha)};`
       : '\n    border: none;';
     lines.push(
 `#${pillId} {
@@ -412,12 +485,13 @@ function buildPreviewPill(pill) {
   div.className = 'preview-pill' + (state.selectedPill === pill.id ? ' selected' : '');
   div.dataset.pillId = pill.id;
   div.title = '#' + pill.id;
+  const borderWidth = s.borderWidth !== undefined ? s.borderWidth : 1;
   div.style.cssText = `
     background-color: ${rgba(s.bgColor, s.bgAlpha)};
     border-radius: ${s.radius}px;
     margin: ${s.marginV}px ${s.marginH}px;
     padding: 0 ${Math.max(s.paddingH, 4)}px;
-    border: ${s.borderOn ? `1px solid ${rgba(s.borderColor, s.borderAlpha)}` : 'none'};
+    border: ${s.borderOn ? `${borderWidth}px solid ${rgba(s.borderColor, s.borderAlpha)}` : 'none'};
   `;
 
   for (const pid of (pill.plugins || [])) {
@@ -596,6 +670,7 @@ document.querySelectorAll('.btn-add-pill').forEach(btn => {
 
 /* ── Toolbar buttons ───────────────────────────────────────────────── */
 document.getElementById('btn-save').addEventListener('click', () => {
+  syncLayoutFromStyles();
   const fullCSS = generateCSS() + '\n' + generateWindowCSS();
   sendToC({
     action:  'save',
@@ -612,6 +687,7 @@ document.getElementById('btn-apply').addEventListener('click', () => {
 });
 
 document.getElementById('btn-restart').addEventListener('click', () => {
+  syncLayoutFromStyles();
   const fullCSS = generateCSS() + '\n' + generateWindowCSS();
   sendToC({
     action:  'save',

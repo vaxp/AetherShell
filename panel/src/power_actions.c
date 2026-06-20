@@ -1,6 +1,8 @@
 #include "power_actions.h"
 #include <gio/gio.h>
 #include <stdio.h>
+#include <stdlib.h>
+
 #define LOGIN1_BUS  "org.freedesktop.login1"
 #define LOGIN1_PATH "/org/freedesktop/login1"
 #define LOGIN1_IFACE "org.freedesktop.login1.Manager"
@@ -27,11 +29,6 @@ void venom_reboot(void) {
     g_object_unref(bus);
 }
 
-void venom_logout(void) {
-    // dm-tool هي الطريقة الرسمية مع LightDM
-    system("dm-tool switch-to-greeter");
-}
-
 void venom_sleep(void) {
     GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (!bus) return;
@@ -39,5 +36,21 @@ void venom_sleep(void) {
         "Suspend",
         g_variant_new("(b)", TRUE),
         NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL);
+    g_object_unref(bus);
+}
+
+void venom_logout(void) {
+    char *session_id = getenv("XDG_SESSION_ID");
+    if (!session_id) return;
+
+    GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
+    if (!bus) return;
+
+    char path[256];
+    snprintf(path, sizeof(path), "/org/freedesktop/login1/session/%s", session_id);
+
+    g_dbus_connection_call_sync(bus, LOGIN1_BUS, path,
+        "org.freedesktop.login1.Session", "Terminate",
+        NULL, NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL);
     g_object_unref(bus);
 }

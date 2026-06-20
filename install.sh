@@ -29,7 +29,6 @@ packages=(
     aether-aetherlock
     aether-aetheridle
     aether-aether-recorder
-    aether-vpanel
 )
 
 deb_files=()

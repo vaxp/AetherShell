@@ -13,6 +13,8 @@
         "type"    : "pill",
         "id"      : "menu-pill",
         "spacing" : 0,
+        "border_color": "#00e5ff",
+        "border_width": 2,
         "plugins" : [
           "aether-appmenu",
           "aether-clipboard"
@@ -55,6 +57,8 @@
         "type"    : "pill",
         "id"      : "status-pill",
         "spacing" : 0,
+        "border_color": "#ff007f",
+        "border_width": 2,
         "plugins" : [
           "aether-wifi",
           "aether-bt",

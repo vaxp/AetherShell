@@ -52,6 +52,37 @@ void app_menu_set_relative_to(GtkWidget *menu, GtkWidget *relative_to) {
     panel_window_backend_align_popup(GTK_WINDOW(menu), relative_to, 220);
 }
 
+static void launch_designer(void) {
+    char *path = NULL;
+
+    // 1. Dev path check: "designer/aether-panel-designer"
+    if (g_file_test("designer/aether-panel-designer", G_FILE_TEST_EXISTS | G_FILE_TEST_IS_EXECUTABLE)) {
+        path = g_strdup("designer/aether-panel-designer");
+    } else {
+        // 2. Release path check: next to panel binary
+        char *exe = g_file_read_link("/proc/self/exe", NULL);
+        if (exe) {
+            char *dir = g_path_get_dirname(exe);
+            path = g_build_filename(dir, "aether-panel-designer", NULL);
+            g_free(dir);
+            g_free(exe);
+        }
+    }
+
+    if (path && g_file_test(path, G_FILE_TEST_EXISTS)) {
+        GError *error = NULL;
+        char *argv[] = { path, NULL };
+        if (!g_spawn_async(NULL, argv, NULL, 0, NULL, NULL, NULL, &error)) {
+            g_warning("Failed to launch designer from '%s': %s", path, error ? error->message : "?");
+            if (error) g_error_free(error);
+        }
+        g_free(path);
+    } else {
+        g_warning("Could not find aether-panel-designer binary");
+        if (path) g_free(path);
+    }
+}
+
 // Callback for menu item clicks
 static void on_menu_item_clicked(GtkButton *btn, gpointer user_data) {
     const char *action = (const char *)user_data;
@@ -98,6 +129,8 @@ static void on_menu_item_clicked(GtkButton *btn, gpointer user_data) {
             g_print("Failed to launch vsysinfo: %s\n", error->message);
             g_error_free(error);
         }
+    } else if (g_strcmp0(action, "designer") == 0) {
+        launch_designer();
     } else {
         g_print("Action not implemented yet: %s\n", action);
     }
@@ -182,9 +215,9 @@ GtkWidget* init_app_menu(void) {
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("System Preferences...", "prefs", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("VAXP Store...", "vstore", NULL), FALSE, FALSE, 0);
     
-    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Recent Items", "recent", "›"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Aether Designer", "designer", NULL), FALSE, FALSE, 0);
     
-    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Force Quit Vafile", "force_quit", "⌥⇧⌘⎋"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Log Out...", "logout", "⇧⌘Q"), FALSE, FALSE, 0);
     
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Sleep", "sleep", NULL), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(main_box), create_menu_item("Restart...", "restart", NULL), FALSE, FALSE, 0);

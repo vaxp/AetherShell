@@ -80,10 +80,16 @@ void on_folder_drag_data_received(GtkWidget *widget, GdkDragContext *context, gi
     GFile *folder = g_file_new_for_uri(folder_uri);
     char *folder_path = g_file_get_path(folder);
 
-    (void)widget;
+    GtkWidget *source_widget = gtk_drag_get_source_widget(context);
     (void)x;
     (void)y;
     (void)info;
+    if (source_widget && is_selected(widget)) {
+        g_free(folder_path);
+        g_object_unref(folder);
+        gtk_drag_finish(context, FALSE, FALSE, time);
+        return;
+    }
 
     if (folder_path) {
         gchar **uris = g_uri_list_extract_uris((const gchar *)gtk_selection_data_get_data(data));
@@ -133,6 +139,13 @@ void on_bg_drag_data_received(GtkWidget *widget, GdkDragContext *context, gint x
             GHashTableIter iter;
             gpointer key;
             gpointer value;
+            DesktopMode mode = get_current_desktop_mode();
+            int min_y = 0;
+            int max_y = screen_h - ITEM_HEIGHT;
+            if (mode == MODE_NORMAL || mode == MODE_WORK) {
+                min_y = 40;
+                max_y = screen_h - ITEM_HEIGHT - 40;
+            }
 
             g_hash_table_iter_init(&iter, drag_initial_positions);
             while (g_hash_table_iter_next(&iter, &key, &value)) {
@@ -142,9 +155,9 @@ void on_bg_drag_data_received(GtkWidget *widget, GdkDragContext *context, gint x
                 int new_y = start_pos[1] + delta_y;
 
                 if (new_x < 0) new_x = 0;
-                if (new_y < 0) new_y = 0;
+                if (new_y < min_y) new_y = min_y;
                 if (new_x > screen_w - ITEM_WIDTH) new_x = screen_w - ITEM_WIDTH;
-                if (new_y > screen_h - ITEM_HEIGHT) new_y = screen_h - ITEM_HEIGHT;
+                if (new_y > max_y) new_y = max_y;
 
                 gtk_layout_move(GTK_LAYOUT(icon_layout), item, new_x, new_y);
 
@@ -370,6 +383,11 @@ void refresh_icons(void) {
 
             if (use_manual_positions && get_item_position(fname, &x, &y)) {
                 GdkRectangle *r;
+                DesktopMode mode = get_current_desktop_mode();
+                if (mode == MODE_NORMAL || mode == MODE_WORK) {
+                    if (y < 40) y = 40;
+                    if (y > screen_h - ITEM_HEIGHT - 40) y = screen_h - ITEM_HEIGHT - 40;
+                }
                 gtk_layout_put(GTK_LAYOUT(icon_layout), item, x, y);
                 r = g_new(GdkRectangle, 1);
                 r->x = x;
@@ -383,8 +401,15 @@ void refresh_icons(void) {
         }
 
         {
+            DesktopMode mode = get_current_desktop_mode();
+            int start_grid_y = GRID_Y;
+            int max_y = screen_h - ITEM_HEIGHT;
+            if (mode == MODE_NORMAL || mode == MODE_WORK) {
+                if (start_grid_y < 40) start_grid_y = 40;
+                max_y = screen_h - ITEM_HEIGHT - 40;
+            }
             int grid_x = GRID_X;
-            int grid_y = GRID_Y;
+            int grid_y = start_grid_y;
 
             for (GList *l = pending_items; l != NULL; l = l->next) {
                 GtkWidget *item = GTK_WIDGET(l->data);
@@ -404,8 +429,8 @@ void refresh_icons(void) {
                     if (!collision) break;
 
                     grid_y += ITEM_HEIGHT + 10;
-                    if (grid_y > screen_h - ITEM_HEIGHT) {
-                        grid_y = GRID_Y;
+                    if (grid_y > max_y) {
+                        grid_y = start_grid_y;
                         grid_x += ITEM_WIDTH + 10;
                     }
                 }

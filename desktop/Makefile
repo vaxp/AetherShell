@@ -28,7 +28,7 @@ MAIN_SRCS = \
 	$(SRCDIR)/desktop.c \
 	$(SRCDIR)/desktop_config.c \
 	$(SRCDIR)/wallpaper.c \
-	$(MPV_SRCS) \
+	$(SRCDIR)/video_wallpaper.c \
 	$(SRCDIR)/filesystem.c \
 	$(SRCDIR)/icons.c \
 	$(SRCDIR)/menu.c \
@@ -46,7 +46,7 @@ ifneq ($(wildcard $(SETBG_SRC)),)
 BIN_TARGETS += $(SETBG_TARGET)
 endif
 
-all: $(OBJDIR) $(BIN_TARGETS)
+all: $(OBJDIR) $(BIN_TARGETS) widgets
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)

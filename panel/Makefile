@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := panel
+.DEFAULT_GOAL := all
 .PHONY: panel designer clean install uninstall dist all
 
 CC      = gcc
@@ -48,7 +48,7 @@ SRC      = src/panel.c $(ENGINE_SRC) $(COMPONENT_SRC)
 INCLUDES = -Iinclude -I.
 
 # ── Build ──────────────────────────────────────────────────────────────────── #
-panel: $(SRC)
+panel: $(SRC) designer
 	$(CC) -o panel $(SRC) $(CFLAGS) $(INCLUDES) $(LIBS)
 
 # ── Designer ───────────────────────────────────────────────────────────────── #
@@ -68,12 +68,17 @@ clean:
 	rm -f panel designer/aether-panel-designer
 
 # ── Install ────────────────────────────────────────────────────────────────── #
-install: panel
+install: panel designer
 	install -d $(DESTDIR)$(BINDIR)
+	install -d $(DESTDIR)$(BINDIR)/ui
 	install -d $(DESTDIR)$(RESOURCES_DIR)
 	install -d $(DESTDIR)$(RESOURCES_DIR)/images
 	install -d $(DESTDIR)$(PLUGINDIR)
 	install -m 755 panel $(DESTDIR)$(BINDIR)/panel
+	install -m 755 designer/aether-panel-designer $(DESTDIR)$(BINDIR)/aether-panel-designer
+	install -m 644 designer/ui/index.html $(DESTDIR)$(BINDIR)/ui/index.html
+	install -m 644 designer/ui/style.css $(DESTDIR)$(BINDIR)/ui/style.css
+	install -m 644 designer/ui/app.js $(DESTDIR)$(BINDIR)/ui/app.js
 	install -m 644 style.css $(DESTDIR)$(RESOURCES_DIR)/style.css
 	install -m 644 config/panel.json $(DESTDIR)$(DATADIR)/panel.json
 	install -m 644 images/vaxp.png $(DESTDIR)$(RESOURCES_DIR)/images/vaxp.png
@@ -82,6 +87,11 @@ install: panel
 
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/panel
+	rm -f $(DESTDIR)$(BINDIR)/aether-panel-designer
+	rm -f $(DESTDIR)$(BINDIR)/ui/index.html
+	rm -f $(DESTDIR)$(BINDIR)/ui/style.css
+	rm -f $(DESTDIR)$(BINDIR)/ui/app.js
+	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(BINDIR)/ui
 	rm -f $(DESTDIR)$(RESOURCES_DIR)/style.css
 	rm -f $(DESTDIR)$(DATADIR)/panel.json
 	rm -f $(DESTDIR)$(RESOURCES_DIR)/images/vaxp.png

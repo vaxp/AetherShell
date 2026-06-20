@@ -12,8 +12,17 @@
 #include <glib/gstdio.h>
 #include <string.h>
 
-#define WIDGETS_DIR "/home/x/.config/vaxp/widgets"
-#define WIDGETS_ENABLED_CONFIG "/home/x/.config/vaxp/widgets-enabled"
+static char *get_widgets_dir(void) {
+    return get_vaxp_config_path("widgets");
+}
+
+static char *get_widgets_enabled_config(void) {
+    return get_vaxp_config_path("widgets-enabled");
+}
+
+static char *get_widgets_theme_config(void) {
+    return get_vaxp_config_path("widgets-theme");
+}
 
 typedef struct {
     void *dl_handle;
@@ -50,16 +59,19 @@ static void update_all_widgets_theme(void) {
 static void save_widget_theme_config(void) {
     GKeyFile *kf = g_key_file_new();
     ensure_config_dir();
-    g_key_file_load_from_file(kf, "/home/x/.config/vaxp/widgets-theme", G_KEY_FILE_NONE, NULL);
+    char *theme_cfg = get_widgets_theme_config();
+    g_key_file_load_from_file(kf, theme_cfg, G_KEY_FILE_NONE, NULL);
     g_key_file_set_string(kf, "Theme", "Color", current_widget_bg_color);
     g_key_file_set_double(kf, "Theme", "Opacity", current_widget_bg_opacity);
-    g_key_file_save_to_file(kf, "/home/x/.config/vaxp/widgets-theme", NULL);
+    g_key_file_save_to_file(kf, theme_cfg, NULL);
+    g_free(theme_cfg);
     g_key_file_free(kf);
 }
 
 static void load_widget_theme_config(void) {
     GKeyFile *kf = g_key_file_new();
-    if (g_key_file_load_from_file(kf, "/home/x/.config/vaxp/widgets-theme", G_KEY_FILE_NONE, NULL)) {
+    char *theme_cfg = get_widgets_theme_config();
+    if (g_key_file_load_from_file(kf, theme_cfg, G_KEY_FILE_NONE, NULL)) {
         char *col = g_key_file_get_string(kf, "Theme", "Color", NULL);
         if (col) {
             strncpy(current_widget_bg_color, col, sizeof(current_widget_bg_color) - 1);
@@ -70,6 +82,7 @@ static void load_widget_theme_config(void) {
         if (!err) current_widget_bg_opacity = op;
         else g_error_free(err);
     }
+    g_free(theme_cfg);
     g_key_file_free(kf);
     update_all_widgets_theme(); /* In case widgets were already loaded */
 }
@@ -162,7 +175,9 @@ static gboolean widget_load_metadata(const char *fname, gboolean log_errors) {
 
     if (w->api) return TRUE;
 
-    full_path = g_strdup_printf("%s/%s", WIDGETS_DIR, fname);
+    char *wdir = get_widgets_dir();
+    full_path = g_strdup_printf("%s/%s", wdir, fname);
+    g_free(wdir);
     handle = dlopen(full_path, RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
         if (log_errors) g_warning("[Widgets] Failed to load %s: %s", fname, dlerror());
@@ -259,8 +274,12 @@ static gboolean is_widget_enabled(const char *fname) {
     gsize len = 0;
     gchar **lines;
 
-    if (!g_file_get_contents(WIDGETS_ENABLED_CONFIG, &contents, &len, NULL))
+    char *enabled_cfg = get_widgets_enabled_config();
+    if (!g_file_get_contents(enabled_cfg, &contents, &len, NULL)) {
+        g_free(enabled_cfg);
         return TRUE;
+    }
+    g_free(enabled_cfg);
 
     lines = g_strsplit(contents, "\n", -1);
     g_free(contents);
@@ -287,7 +306,8 @@ static void set_widget_enabled(const char *fname, gboolean enabled) {
     gboolean found = FALSE;
 
     ensure_config_dir();
-    g_file_get_contents(WIDGETS_ENABLED_CONFIG, &contents, &len, NULL);
+    char *enabled_cfg = get_widgets_enabled_config();
+    g_file_get_contents(enabled_cfg, &contents, &len, NULL);
     new_contents = g_string_new("");
 
     if (contents) {
@@ -319,7 +339,8 @@ static void set_widget_enabled(const char *fname, gboolean enabled) {
         g_string_append_printf(new_contents, "disabled:%s\n", fname);
     }
 
-    g_file_set_contents(WIDGETS_ENABLED_CONFIG, new_contents->str, -1, NULL);
+    g_file_set_contents(enabled_cfg, new_contents->str, -1, NULL);
+    g_free(enabled_cfg);
     g_string_free(new_contents, TRUE);
 }
 
@@ -329,8 +350,9 @@ void load_all_widgets(GtkWidget *layout) {
 
     load_widget_theme_config();
 
-    g_mkdir_with_parents(WIDGETS_DIR, 0755);
-    dir = g_dir_open(WIDGETS_DIR, 0, NULL);
+    char *wdir = get_widgets_dir();
+    g_mkdir_with_parents(wdir, 0755);
+    dir = g_dir_open(wdir, 0, NULL);
     if (!dir) return;
 
     ensure_widget_registry();
@@ -357,6 +379,7 @@ void load_all_widgets(GtkWidget *layout) {
     }
 
     g_dir_close(dir);
+    g_free(wdir);
 }
 
 void reload_widgets(void) {
@@ -366,8 +389,9 @@ void reload_widgets(void) {
     gpointer key;
     gpointer value;
 
-    g_mkdir_with_parents(WIDGETS_DIR, 0755);
-    dir = g_dir_open(WIDGETS_DIR, 0, NULL);
+    char *wdir = get_widgets_dir();
+    g_mkdir_with_parents(wdir, 0755);
+    dir = g_dir_open(wdir, 0, NULL);
     if (!dir) return;
 
     ensure_widget_registry();
@@ -388,6 +412,7 @@ void reload_widgets(void) {
         }
     }
     g_dir_close(dir);
+    g_free(wdir);
 
     g_hash_table_iter_init(&iter, loaded_widgets);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
@@ -553,8 +578,9 @@ static void show_edit_widgets_dialog(GtkWidget *parent_widget) {
     gtk_list_box_set_selection_mode(GTK_LIST_BOX(list_box), GTK_SELECTION_NONE);
     gtk_container_add(GTK_CONTAINER(scroll), list_box);
 
-    g_mkdir_with_parents(WIDGETS_DIR, 0755);
-    dir = g_dir_open(WIDGETS_DIR, 0, NULL);
+    char *wdir = get_widgets_dir();
+    g_mkdir_with_parents(wdir, 0755);
+    dir = g_dir_open(wdir, 0, NULL);
 
     if (dir) {
         const char *fname;
@@ -621,6 +647,7 @@ static void show_edit_widgets_dialog(GtkWidget *parent_widget) {
             rows = g_list_append(rows, row_box);
         }
         g_dir_close(dir);
+        g_free(wdir);
     }
 
     if (widget_count == 0) {

@@ -22,6 +22,9 @@
  */
 
 #include "video_wallpaper.h"
+#include "desktop_config.h"
+
+#ifdef HAVE_MPV
 #include <mpv/client.h>
 #include <mpv/render.h>
 #include <cairo/cairo.h>
@@ -29,7 +32,7 @@
 #include <stdio.h>
 #include <locale.h>
 
-#define VIDEO_VOLUME_CONFIG "/home/x/.config/vaxp/video-wallpaper-volume"
+
 
 /* ── Module-private state ───────────────────────────────────────── */
 static mpv_handle         *g_mpv      = NULL;
@@ -109,10 +112,12 @@ static int read_saved_volume(void)
 {
     char *buf = NULL;
     int vol = 0;
-    if (g_file_get_contents(VIDEO_VOLUME_CONFIG, &buf, NULL, NULL)) {
+    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
+    if (g_file_get_contents(vol_cfg, &buf, NULL, NULL)) {
         vol = CLAMP(atoi(buf), 0, 100);
         g_free(buf);
     }
+    g_free(vol_cfg);
     return vol;
 }
 
@@ -244,8 +249,10 @@ void video_wallpaper_set_volume(int volume)
     /* Use mpv_set_property_string post-init */
     mpv_set_property_string(g_mpv, "volume", vs);
 
-    g_mkdir_with_parents("/home/x/.config/vaxp", 0755);
-    g_file_set_contents(VIDEO_VOLUME_CONFIG, vs, -1, NULL);
+    ensure_config_dir();
+    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
+    g_file_set_contents(vol_cfg, vs, -1, NULL);
+    g_free(vol_cfg);
 }
 
 /*
@@ -284,3 +291,50 @@ gboolean video_wallpaper_draw(cairo_t *cr)
     cairo_surface_destroy(surf);
     return TRUE;
 }
+
+#else /* HAVE_MPV */
+
+#include <glib.h>
+
+gboolean is_video_file(const char *path) {
+    if (!path || !*path) return FALSE;
+    static const char * const exts[] = {
+        ".mp4", ".mkv", ".webm", ".avi", ".mov",
+        ".flv", ".wmv", ".m4v",  ".ogv", ".ts",
+        ".m2ts",".mpg", ".mpeg", ".3gp", ".hevc", NULL
+    };
+    char *lo = g_ascii_strdown(path, -1);
+    gboolean ok = FALSE;
+    for (int i = 0; exts[i]; i++)
+        if (g_str_has_suffix(lo, exts[i])) { ok = TRUE; break; }
+    g_free(lo);
+    return ok;
+}
+
+gboolean video_wallpaper_init(GtkWidget *icon_layout) {
+    (void)icon_layout;
+    g_warning("[VideoWallpaper] Video wallpaper support is disabled (compiled without libmpv-dev)");
+    return FALSE;
+}
+
+void video_wallpaper_load(const char *path) {
+    g_warning("[VideoWallpaper] Cannot play '%s': Video wallpaper support is disabled (compiled without libmpv-dev)", path);
+}
+
+void video_wallpaper_stop(void) {
+}
+
+gboolean video_wallpaper_is_active(void) {
+    return FALSE;
+}
+
+void video_wallpaper_set_volume(int volume) {
+    (void)volume;
+}
+
+gboolean video_wallpaper_draw(cairo_t *cr) {
+    (void)cr;
+    return FALSE;
+}
+
+#endif /* HAVE_MPV */

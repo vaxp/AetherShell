@@ -1,7 +1,0 @@
-Package: aether-vpanel
-Version: 0.1.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Maintainer: vaxp Developer <dev@vaxp.org>
-Description: AetherShell component - vpanel

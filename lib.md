@@ -1,17 +1,18 @@
-sudo apt install libgtk-layer-shell0 slurp grim libmpv2
+sudo apt install libgtk-layer-shell0 slurp grim libmpv2 
 
 
 للبناء 
 
 sudo apt install
-libavutil-dev \
+libmpv-dev \
 libavcodec-dev \
 libavformat-dev \
 libswscale-dev \
 libavdevice-dev \
 libavfilter-dev \
 build-essential \
-pkg-config cmake \
+pkg-config \
+cmake \
 libgtk-3-dev  \
 libgtk-layer-shell-dev \
 libgtk-4-dev \

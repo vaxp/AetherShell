@@ -27,8 +27,8 @@ typedef enum {
 #define ITEM_HEIGHT 128
 #define GRID_X 20
 #define GRID_Y 20
-#define CONFIG_FILE "/home/x/.config/vaxp/desktop-items.ini"
-#define SORT_CONFIG_FILE "/home/x/.config/vaxp/desktop-sort"
+char *get_vaxp_config_path(const char *filename);
+char *get_vaxp_cache_path(const char *filename);
 
 void ensure_config_dir(void);
 

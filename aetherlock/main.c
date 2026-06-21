@@ -1330,7 +1330,7 @@ int main(int argc, char **argv) {
 		if (home) {
 			char wp_path[4096];
 			snprintf(wp_path, sizeof(wp_path),
-				"%s/.config/vaxp/background", home);
+				"%s/.config/vaxp/desktop/background", home);
 			if (access(wp_path, R_OK) == 0) {
 				aetherlock_log(LOG_DEBUG,
 					"Auto-loading pre-blurred wallpaper: %s", wp_path);

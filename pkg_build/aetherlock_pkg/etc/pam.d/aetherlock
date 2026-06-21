@@ -1,12 +1,12 @@
 # /etc/pam.d/aetherlock
 
-# 1. التحقق من كلمة المرور عبر النظام الأساسي
-auth        include     system-auth
+# 1. التحقق من كلمة المرور عبر ملف الدخول الأساسي للنظام
+auth        include     login
 
-# 2. أخذ كلمة المرور التي تم إدخالها للتو وتمريرها للمحفظة لفك تشفيرها!
+# 2. فك تشفير المحفظة بعد التحقق الناجح
 auth        optional    pam_gnome_keyring.so
 
-# 3. إعدادات الحساب والجلسات القياسية
-account     include     system-auth
-password    include     system-auth
-session     include     system-auth
+# 3. إعدادات الحساب والجلسات
+account     include     login
+password    include     login
+session     include     login

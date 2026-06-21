@@ -17,7 +17,7 @@
  *
  * Load order (highest priority last, so user CSS wins):
  *   1. System base: @base_css_path   (e.g. /usr/share/panel/style.css)
- *   2. User override: ~/.config/aether/panel-user.css  (created if absent)
+ *   2. User override: ~/.config/vaxp/panel/panel-user.css  (created if absent)
  *
  * @base_css_path : absolute path to the shipped style.css.
  *                  Pass NULL to skip the base stylesheet.

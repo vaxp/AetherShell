@@ -31,13 +31,13 @@
 #define DEFAULT_PANEL_HEIGHT  36
 
 /* External plugin directory — scanned for *.so at startup */
-#define EXTERNAL_PLUGIN_DIR   "config/aether/plugins"
+#define EXTERNAL_PLUGIN_DIR   "config/vaxp/panel/plugins"
 
 /* Installed system-wide panel layout JSON */
 #define DEFAULT_LAYOUT_JSON       "/usr/local/share/panel/panel.json"
 
 /* Relative path from binary dir used during development (./config/panel.json) */
-#define DEV_LAYOUT_JSON_RELPATH   "config/panel.json"
+#define DEV_LAYOUT_JSON_RELPATH   "config/vaxp/panel.json"
 
 /* ── Default panel.json written when no config is found ───────────────── */
 static const char *PANEL_DEFAULT_JSON =
@@ -309,7 +309,7 @@ static char *resolve_layout_json_path(void)
 {
     /* 1. User override: ~/.config/aether/panel.json */
     char *user_path = g_build_filename(g_get_user_config_dir(),
-                                       "aether", "panel.json", NULL);
+                                       "vaxp", "panel", "panel.json", NULL);
     if (g_file_test(user_path, G_FILE_TEST_EXISTS)) {
         g_debug("[Panel] Using user layout: %s", user_path);
         return user_path;
@@ -336,7 +336,7 @@ static char *resolve_layout_json_path(void)
 
     /* 4. Nothing found — auto-generate at ~/.config/aether/panel.json */
     char *gen_path = g_build_filename(g_get_user_config_dir(),
-                                      "aether", "panel.json", NULL);
+                                      "vaxp", "panel", "panel.json", NULL);
     char *gen_dir  = g_path_get_dirname(gen_path);
     g_mkdir_with_parents(gen_dir, 0755);
     g_free(gen_dir);
@@ -383,7 +383,7 @@ int main(int argc, char *argv[])
     plugin_engine_scan_dir(EXTERNAL_PLUGIN_DIR);   /* relative (dev builds) */
 
     char *user_plugin_dir = g_build_filename(g_get_user_config_dir(),
-                                             "aether", "plugins", NULL);
+                                             "vaxp", "panel", "plugins", NULL);
     plugin_engine_scan_dir(user_plugin_dir);
     g_free(user_plugin_dir);
 

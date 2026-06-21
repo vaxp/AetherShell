@@ -7,7 +7,7 @@
 static char *layout_path(void)
 {
     /* 1. User config */
-    char *p = g_build_filename(g_get_user_config_dir(), "aether", "panel.json", NULL);
+    char *p = g_build_filename(g_get_user_config_dir(), "vaxp", "panel", "panel.json", NULL);
     if (g_file_test(p, G_FILE_TEST_EXISTS)) return p;
     g_free(p);
 
@@ -15,23 +15,23 @@ static char *layout_path(void)
     char *exe = g_file_read_link("/proc/self/exe", NULL);
     char *dir = exe ? g_path_get_dirname(exe) : g_strdup(".");
     g_free(exe);
-    p = g_build_filename(dir, "..", "config", "panel.json", NULL);
+    p = g_build_filename(dir, "..", "config", "vaxp", "panel", "panel.json", NULL);
     g_free(dir);
     if (g_file_test(p, G_FILE_TEST_EXISTS)) return p;
     g_free(p);
 
     /* 3. Generate path (will be created on first save) */
-    return g_build_filename(g_get_user_config_dir(), "aether", "panel.json", NULL);
+    return g_build_filename(g_get_user_config_dir(), "vaxp", "panel", "panel.json", NULL);
 }
 
 static char *user_css_path(void)
 {
-    return g_build_filename(g_get_user_config_dir(), "aether", "panel-user.css", NULL);
+    return g_build_filename(g_get_user_config_dir(), "vaxp", "panel", "panel-user.css", NULL);
 }
 
 static char *state_path(void)
 {
-    return g_build_filename(g_get_user_config_dir(), "aether",
+    return g_build_filename(g_get_user_config_dir(), "vaxp", "panel",
                             "panel-designer-state.json", NULL);
 }
 
@@ -65,7 +65,7 @@ char *config_io_read_designer_state(void)
 void config_io_write_layout(const char *json)
 {
     if (!json) return;
-    char *p = g_build_filename(g_get_user_config_dir(), "aether", "panel.json", NULL);
+    char *p = g_build_filename(g_get_user_config_dir(), "vaxp", "panel", "panel.json", NULL);
     ensure_dir(p);
     GError *e = NULL;
     if (!g_file_set_contents(p, json, -1, &e))

@@ -176,9 +176,9 @@ static char *build_plugins_json(void)
         n++;
     }
 
-    /* 2. User plugin dir: ~/.config/aether/plugins/ */
+    /* 2. User plugin dir: ~/.config/vaxp/panel/plugins/ */
     char *user_dir = g_build_filename(g_get_user_config_dir(),
-                                       "aether", "plugins", NULL);
+                                       "vaxp", "panel", "plugins", NULL);
     scan_external_dir(user_dir, out, seen, &n);
     g_free(user_dir);
 
@@ -186,7 +186,7 @@ static char *build_plugins_json(void)
     char *exe     = g_file_read_link("/proc/self/exe", NULL);
     char *bin_dir = exe ? g_path_get_dirname(exe) : g_strdup(".");
     g_free(exe);
-    char *dev_dir = g_build_filename(bin_dir, "..", "config", "aether", "plugins", NULL);
+    char *dev_dir = g_build_filename(bin_dir, "..", "config", "vaxp", "panel", "plugins", NULL);
     g_free(bin_dir);
     scan_external_dir(dev_dir, out, seen, &n);
     g_free(dev_dir);
@@ -298,9 +298,9 @@ static void on_plugin_dir_changed(GFileMonitor      *mon,
 /* Start watching both plugin directories */
 static void start_plugin_monitors(void)
 {
-    /* ─ 1. User config dir: ~/.config/aether/plugins/ ─ */
+    /* ─ 1. User config dir: ~/.config/vaxp/panel/plugins/ ─ */
     char *user_dir = g_build_filename(g_get_user_config_dir(),
-                                       "aether", "plugins", NULL);
+                                       "vaxp", "panel", "plugins", NULL);
     g_mkdir_with_parents(user_dir, 0755);   /* ensure dir exists */
     GFile  *f1  = g_file_new_for_path(user_dir);
     GError *err = NULL;
@@ -313,16 +313,16 @@ static void start_plugin_monitors(void)
         g_file_monitor_set_rate_limit(g_plugin_monitors[0], 300);
         g_signal_connect(g_plugin_monitors[0], "changed",
                          G_CALLBACK(on_plugin_dir_changed), NULL);
-        g_debug("[Designer] Monitoring ~/.config/aether/plugins/");
+        g_debug("[Designer] Monitoring ~/.config/vaxp/panel/plugins/");
     } else {
         if (err) { g_warning("[Designer] Plugin monitor: %s", err->message); g_error_free(err); }
     }
 
-    /* ─ 2. Dev-relative dir (next to binary): ../config/aether/plugins/ ─ */
+    /* ─ 2. Dev-relative dir (next to binary): ../config/vaxp/panel/plugins/ ─ */
     char *exe     = g_file_read_link("/proc/self/exe", NULL);
     char *bin_dir = exe ? g_path_get_dirname(exe) : g_strdup(".");
     g_free(exe);
-    char *dev_dir = g_build_filename(bin_dir, "..", "config", "aether", "plugins", NULL);
+    char *dev_dir = g_build_filename(bin_dir, "..", "config", "vaxp", "panel", "plugins", NULL);
     g_free(bin_dir);
 
     if (g_file_test(dev_dir, G_FILE_TEST_IS_DIR)) {

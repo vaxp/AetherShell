@@ -3,7 +3,7 @@
  *
  * Reads panel.json and constructs the GTK widget tree for the panel bar.
  * Pill containers (GtkBoxes) receive CSS classes so users can style them
- * freely from ~/.config/aether/panel-user.css.
+ * freely from ~/.config/vaxp/panel/panel-user.css.
  */
 
 #include <json-glib/json-glib.h>

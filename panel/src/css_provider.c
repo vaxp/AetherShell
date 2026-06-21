@@ -21,14 +21,14 @@ static char           *g_user_css_path  = NULL;
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
 
-/* Returns the path to ~/.config/aether/panel-user.css (caller must g_free) */
+/* Returns the path to ~/.config/vaxp/panel/panel-user.css (caller must g_free) */
 static char *get_user_css_path(void)
 {
     return g_build_filename(g_get_user_config_dir(),
-                            "aether", "panel-user.css", NULL);
+                            "vaxp", "panel", "panel-user.css", NULL);
 }
 
-/* Ensure ~/.config/aether/ exists and create a stub panel-user.css if absent */
+/* Ensure ~/.config/vaxp/panel/ exists and create a stub panel-user.css if absent */
 static void ensure_user_css(const char *path)
 {
     char *dir = g_path_get_dirname(path);

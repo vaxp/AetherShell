@@ -1,4 +1,5 @@
 #include "ui/dock_ui.h"
+#include <math.h>
 #include "ui/dock_config.h"
 #include "ui/x11_integration.h"
 #include "ui/context_menu.h"
@@ -17,33 +18,122 @@ static gboolean clear_stale_launch_state(gpointer data);
 
 static gboolean on_launch_ring_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
     (void)data;
-    gdouble *angle = g_object_get_data(G_OBJECT(widget), "ring-angle");
-    if (!angle) return FALSE;
+    gdouble *time_ptr = g_object_get_data(G_OBJECT(widget), "ring-angle");
+    if (!time_ptr) return FALSE;
+    gdouble time = *time_ptr;
 
     gint width = gtk_widget_get_allocated_width(widget);
     gint height = gtk_widget_get_allocated_height(widget);
     gdouble radius = MIN(width, height) / 2.0 - 3.0;
     gdouble cx = width / 2.0;
     gdouble cy = height / 2.0;
-    gdouble start = *angle;
-    gdouble end = start + (G_PI * 1.15);
 
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 
-    cairo_arc(cr, cx, cy, radius, 0, 2 * G_PI);
-    cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.13);
-    cairo_set_line_width(cr, 1.4);
-    cairo_stroke(cr);
+    switch (current_launch_animation) {
+        case 2: { /* Pulse Ripple */
+            gdouble progress = fmod(time * 0.4, 1.0); /* 0.0 to 1.0 loop */
+            gdouble current_radius = radius * 0.4 + (radius * 0.6 * progress);
+            gdouble alpha = 1.0 - progress;
+            
+            cairo_arc(cr, cx, cy, current_radius, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, alpha);
+            cairo_set_line_width(cr, 2.0);
+            cairo_stroke(cr);
+            break;
+        }
+        case 3: { /* Orbiting Dots */
+            gdouble speed = time * 0.8;
+            for (int i = 0; i < 3; i++) {
+                gdouble angle_offset = i * (2 * G_PI / 3.0);
+                gdouble dot_x = cx + cos(speed + angle_offset) * radius;
+                gdouble dot_y = cy + sin(speed + angle_offset) * radius;
+                cairo_arc(cr, dot_x, dot_y, 2.5, 0, 2 * G_PI);
+                cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 1.0 - (i * 0.2));
+                cairo_fill(cr);
+            }
+            break;
+        }
+        case 4: { /* Radar Sweep */
+            gdouble speed = time * 0.6;
+            /* Background circle */
+            cairo_arc(cr, cx, cy, radius, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.1);
+            cairo_fill(cr);
+            /* Sweep slice */
+            cairo_move_to(cr, cx, cy);
+            cairo_arc(cr, cx, cy, radius, speed, speed + G_PI / 2.0);
+            cairo_close_path(cr);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.4);
+            cairo_fill(cr);
+            /* Leading edge line */
+            cairo_move_to(cr, cx, cy);
+            cairo_line_to(cr, cx + cos(speed + G_PI / 2.0) * radius, cy + sin(speed + G_PI / 2.0) * radius);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 1.0);
+            cairo_set_line_width(cr, 1.5);
+            cairo_stroke(cr);
+            break;
+        }
+        case 5: { /* Dashed Chase */
+            gdouble speed = time * 1.5;
+            double dashes[] = { 6.0, 6.0 };
+            cairo_set_dash(cr, dashes, 2, -speed * 10.0);
+            cairo_arc(cr, cx, cy, radius, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.9);
+            cairo_set_line_width(cr, 2.0);
+            cairo_stroke(cr);
+            break;
+        }
+        case 6: { /* Pendulum Bounce */
+            gdouble swing = sin(time * 0.8); /* -1.0 to 1.0 */
+            gdouble dot_x = cx + swing * radius;
+            gdouble dot_y = cy + radius; /* Bottom edge */
+            
+            /* Draw a faded track */
+            cairo_move_to(cr, cx - radius, cy + radius);
+            cairo_line_to(cr, cx + radius, cy + radius);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.2);
+            cairo_set_line_width(cr, 1.0);
+            cairo_stroke(cr);
 
-    cairo_arc(cr, cx, cy, radius, start, end);
-    cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.95);
-    cairo_set_line_width(cr, 2.2);
-    cairo_stroke(cr);
+            /* Draw the pendulum dot */
+            cairo_arc(cr, dot_x, dot_y, 3.0, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 1.0);
+            cairo_fill(cr);
+            break;
+        }
+        case 7: { /* Breathing Halo */
+            gdouble scale = (sin(time * 0.5) + 1.0) / 2.0; /* 0.0 to 1.0 */
+            gdouble current_radius = radius - 1.0 + (scale * 2.0);
+            
+            cairo_arc(cr, cx, cy, current_radius, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.3 + (scale * 0.7));
+            cairo_set_line_width(cr, 1.0 + (scale * 3.0));
+            cairo_stroke(cr);
+            break;
+        }
+        case 1:
+        default: { /* Spinner (Current) */
+            gdouble start = time * 2.2; /* Adjusted to match original 0.22 speed */
+            gdouble end = start + (G_PI * 1.15);
 
-    cairo_arc(cr, cx, cy, radius, start, end);
-    cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.28);
-    cairo_set_line_width(cr, 5.4);
-    cairo_stroke(cr);
+            cairo_arc(cr, cx, cy, radius, 0, 2 * G_PI);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.13);
+            cairo_set_line_width(cr, 1.4);
+            cairo_stroke(cr);
+
+            cairo_arc(cr, cx, cy, radius, start, end);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.95);
+            cairo_set_line_width(cr, 2.2);
+            cairo_stroke(cr);
+
+            cairo_arc(cr, cx, cy, radius, start, end);
+            cairo_set_source_rgba(cr, current_launch_ring_color.red, current_launch_ring_color.green, current_launch_ring_color.blue, 0.28);
+            cairo_set_line_width(cr, 5.4);
+            cairo_stroke(cr);
+            break;
+        }
+    }
 
     return FALSE;
 }
@@ -57,10 +147,7 @@ static gboolean rotate_launch_ring(gpointer data) {
     gdouble *angle = g_object_get_data(G_OBJECT(ring), "ring-angle");
     if (!angle) return G_SOURCE_REMOVE;
 
-    *angle += 0.22;
-    if (*angle > 2 * G_PI) {
-        *angle -= 2 * G_PI;
-    }
+    *angle += 0.1; /* Generic time increment */
 
     gtk_widget_queue_draw(ring);
     return G_SOURCE_CONTINUE;

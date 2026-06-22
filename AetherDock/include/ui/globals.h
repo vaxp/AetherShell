@@ -47,6 +47,7 @@ extern gchar *current_dock_bg_color;
 extern gchar *current_context_menu_bg_color;
 extern gchar *current_indicator_color;
 extern GdkRGBA current_launch_ring_color;
+extern int current_launch_animation;
 
 extern gboolean is_wayland_session;
 extern struct wl_display *wl_display_conn;

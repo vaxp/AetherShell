@@ -6,6 +6,7 @@ gchar *current_dock_bg_color = NULL;
 gchar *current_context_menu_bg_color = NULL;
 gchar *current_indicator_color = NULL;
 GdkRGBA current_launch_ring_color = {0.0, 0.99, 0.82, 1.0}; /* Default #00fcd2 */
+int current_launch_animation = 1;
 
 gboolean is_wayland_session = FALSE;
 struct wl_display *wl_display_conn = NULL;

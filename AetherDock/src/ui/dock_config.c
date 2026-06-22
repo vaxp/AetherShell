@@ -71,6 +71,7 @@ void load_dock_config(void) {
         g_key_file_set_string(key_file, "Dock", "ContextMenuColor", "rgba(8, 10, 14, 0.78)");
         g_key_file_set_string(key_file, "Dock", "IndicatorColor", "#00fcd2");
         g_key_file_set_string(key_file, "Dock", "LaunchRingColor", "#00fcd2");
+        g_key_file_set_integer(key_file, "Dock", "LaunchAnimation", 1);
         write_needed = TRUE;
         g_clear_error(&error);
     }
@@ -97,6 +98,17 @@ void load_dock_config(void) {
     if (ring_color_str) {
         gdk_rgba_parse(&current_launch_ring_color, ring_color_str);
         g_free(ring_color_str);
+    }
+
+    if (g_key_file_has_key(key_file, "Dock", "LaunchAnimation", NULL)) {
+        current_launch_animation = g_key_file_get_integer(key_file, "Dock", "LaunchAnimation", NULL);
+        if (current_launch_animation < 1 || current_launch_animation > 7) {
+            current_launch_animation = 1;
+        }
+    } else {
+        current_launch_animation = 1;
+        g_key_file_set_integer(key_file, "Dock", "LaunchAnimation", 1);
+        write_needed = TRUE;
     }
 
     if (write_needed) {

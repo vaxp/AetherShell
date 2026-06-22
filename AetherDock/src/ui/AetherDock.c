@@ -1,4 +1,5 @@
 #include "ui/globals.h"
+#include <unistd.h>
 #include "ui/dock_config.h"
 #include "ui/wayland_integration.h"
 #include "ui/x11_integration.h"
@@ -51,7 +52,19 @@ int main(int argc, char *argv[]) {
     gtk_init(&argc, &argv);
     dock_executable_path = g_file_read_link("/proc/self/exe", NULL);
     if (!dock_executable_path && argc > 0 && argv[0] && argv[0][0] != '\0') {
-        dock_executable_path = g_strdup(argv[0]);
+        if (!g_path_is_absolute(argv[0])) {
+            gchar *cwd = g_get_current_dir();
+            dock_executable_path = g_build_filename(cwd, argv[0], NULL);
+            g_free(cwd);
+        } else {
+            dock_executable_path = g_strdup(argv[0]);
+        }
+    }
+    
+    /* Change working directory to home to prevent child processes from inheriting 
+       the dock's launch directory (which breaks apps that accidentally read our style.css) */
+    if (chdir(g_get_home_dir()) != 0) {
+        g_warning("Failed to change directory to home.");
     }
 
     load_dock_config();

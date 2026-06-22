@@ -132,37 +132,37 @@ gboolean app_mgr_launch_detached(const char *cmd_line, GError **error) {
 
 gboolean app_mgr_launch(const char *desktop_file_path, GError **error) {
     GDesktopAppInfo *app_info = g_desktop_app_info_new_from_filename(desktop_file_path);
-    if (!app_info) return FALSE;
+    if (!app_info) {
+        g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "Desktop file not found: %s", desktop_file_path);
+        return FALSE;
+    }
     
     GdkAppLaunchContext *context = gdk_display_get_app_launch_context(gdk_display_get_default());
     
-    /* Logic: Try detached if command line available */
-    const gchar *raw_cmd = g_app_info_get_commandline(G_APP_INFO(app_info));
-    gboolean success = FALSE;
-
-    if (raw_cmd) {
-        gchar *cmd_line = g_strdup(raw_cmd);
-        /* Strip codes */
-        const char *codes[] = {"%f", "%u", "%F", "%U", "%i", "%c", "%k", NULL};
-        for (int i = 0; codes[i] != NULL; i++) {
-            gchar *found;
-            while ((found = strstr(cmd_line, codes[i])) != NULL) {
-                found[0] = ' ';
-                found[1] = ' ';
-            }
-        }
-        
-        success = app_mgr_launch_detached(cmd_line, error);
-        if (!success && *error) {
-             /* Reset error for fallback? */
-             g_clear_error(error);
-        }
-        g_free(cmd_line);
-    }
+    /* Ensure child apps don't inherit the disabled accessibility environment from the dock */
+    g_app_launch_context_unsetenv(G_APP_LAUNCH_CONTEXT(context), "GTK_A11Y");
     
+    /* g_app_launch_context handles DBus activation, startup notification, stripping %f/%U,
+       and proper environment setup correctly. Bypassing it breaks many modern apps. */
+    gboolean success = g_app_info_launch(G_APP_INFO(app_info), NULL, G_APP_LAUNCH_CONTEXT(context), error);
+    
+    /* Fallback to manual launch if standard launch fails and command line is available */
     if (!success) {
-        /* Fallback */
-        success = g_app_info_launch(G_APP_INFO(app_info), NULL, G_APP_LAUNCH_CONTEXT(context), error);
+        const gchar *raw_cmd = g_app_info_get_commandline(G_APP_INFO(app_info));
+        if (raw_cmd) {
+            if (error && *error) g_clear_error(error);
+            gchar *cmd_line = g_strdup(raw_cmd);
+            const char *codes[] = {"%f", "%u", "%F", "%U", "%i", "%c", "%k", NULL};
+            for (int i = 0; codes[i] != NULL; i++) {
+                gchar *found;
+                while ((found = strstr(cmd_line, codes[i])) != NULL) {
+                    found[0] = ' ';
+                    found[1] = ' ';
+                }
+            }
+            success = app_mgr_launch_detached(cmd_line, error);
+            g_free(cmd_line);
+        }
     }
     
     g_object_unref(context);

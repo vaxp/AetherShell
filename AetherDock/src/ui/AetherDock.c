@@ -15,6 +15,43 @@
 #include "logic/app_manager.h"
 #include "wlr-foreign-toplevel-management-unstable-v1-client-protocol.h"
 
+typedef enum {
+    DOCK_POSITION_BOTTOM,
+    DOCK_POSITION_TOP,
+    DOCK_POSITION_LEFT,
+    DOCK_POSITION_RIGHT
+} DockPosition;
+
+static DockPosition current_dock_position = DOCK_POSITION_BOTTOM;
+
+static DockPosition get_dock_position(void) {
+    gchar *config_dir = g_build_filename(g_get_user_config_dir(), "vaxp/dock", NULL);
+    gchar *config_file = g_build_filename(config_dir, "dock_state.vaxp", NULL);
+    gchar *contents = NULL;
+    DockPosition pos = DOCK_POSITION_BOTTOM;
+
+    if (!g_file_test(config_file, G_FILE_TEST_EXISTS)) {
+        g_mkdir_with_parents(config_dir, 0755);
+        g_file_set_contents(config_file, "bottom", -1, NULL);
+    }
+
+    if (g_file_get_contents(config_file, &contents, NULL, NULL)) {
+        g_strstrip(contents);
+        if (g_ascii_strcasecmp(contents, "top") == 0) {
+            pos = DOCK_POSITION_TOP;
+        } else if (g_ascii_strcasecmp(contents, "left") == 0) {
+            pos = DOCK_POSITION_LEFT;
+        } else if (g_ascii_strcasecmp(contents, "right") == 0) {
+            pos = DOCK_POSITION_RIGHT;
+        }
+        g_free(contents);
+    }
+
+    g_free(config_file);
+    g_free(config_dir);
+    return pos;
+}
+
 static gboolean is_wayland_session = FALSE;
 static struct wl_display *wl_display_conn = NULL;
 static struct wl_seat *wl_seat_obj = NULL;
@@ -227,10 +264,29 @@ static void setup_dock_window_layer(GtkWidget *window) {
         gtk_layer_init_for_window(GTK_WINDOW(window));
         gtk_layer_set_namespace(GTK_WINDOW(window), "AetherDock");
         gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_TOP);
-        gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
-        gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
-        gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-        gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, 2);
+
+        if (current_dock_position == DOCK_POSITION_TOP) {
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, 2);
+        } else if (current_dock_position == DOCK_POSITION_LEFT) {
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, 2);
+        } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, 2);
+        } else {
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, 2);
+        }
+
         gtk_layer_set_keyboard_mode(GTK_WINDOW(window), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
         gtk_layer_auto_exclusive_zone_enable(GTK_WINDOW(window));
     }
@@ -700,11 +756,30 @@ static void on_dock_realize(GtkWidget *widget, gpointer data) {
     /* Set window as dock type */
     gdk_window_set_type_hint(gdk_window, GDK_WINDOW_TYPE_HINT_DOCK);
     
-    /* Reserve 60px at bottom */
     gulong strut[12] = {0};
-    strut[3] = 55;  /* bottom */
-    strut[10] = 0;  /* bottom_start_x */
-    strut[11] = geometry.width;  /* bottom_end_x */
+    gulong simple_strut[4] = {0};
+
+    if (current_dock_position == DOCK_POSITION_TOP) {
+        strut[2] = 55; // top
+        strut[8] = geometry.x; // top_start_x
+        strut[9] = geometry.x + geometry.width; // top_end_x
+        simple_strut[2] = 55;
+    } else if (current_dock_position == DOCK_POSITION_LEFT) {
+        strut[0] = 55; // left
+        strut[4] = geometry.y; // left_start_y
+        strut[5] = geometry.y + geometry.height; // left_end_y
+        simple_strut[0] = 55;
+    } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+        strut[1] = 55; // right
+        strut[6] = geometry.y; // right_start_y
+        strut[7] = geometry.y + geometry.height; // right_end_y
+        simple_strut[1] = 55;
+    } else {
+        strut[3] = 55;  /* bottom */
+        strut[10] = geometry.x;  /* bottom_start_x */
+        strut[11] = geometry.x + geometry.width;  /* bottom_end_x */
+        simple_strut[3] = 55;
+    }
     
     gdk_property_change(gdk_window, 
                        gdk_atom_intern("_NET_WM_STRUT_PARTIAL", FALSE),
@@ -713,7 +788,6 @@ static void on_dock_realize(GtkWidget *widget, gpointer data) {
                        (guchar *)strut, 12);
     
     /* Also set _NET_WM_STRUT for older window managers */
-    gulong simple_strut[4] = {0, 0, 0, 55};  /* left, right, top, bottom */
     gdk_property_change(gdk_window,
                        gdk_atom_intern("_NET_WM_STRUT", FALSE),
                        gdk_atom_intern("CARDINAL", FALSE),
@@ -1121,10 +1195,147 @@ static void on_window_size_allocate(GtkWidget *widget, GtkAllocation *allocation
     GdkRectangle geometry;
 
     if (get_primary_monitor_geometry(display, &geometry)) {
-        int x = geometry.x + (geometry.width - allocation->width) / 2;
-        int y = geometry.y + geometry.height - allocation->height - 2;
+        int x, y;
+        if (current_dock_position == DOCK_POSITION_TOP) {
+            x = geometry.x + (geometry.width - allocation->width) / 2;
+            y = geometry.y + 2;
+        } else if (current_dock_position == DOCK_POSITION_LEFT) {
+            x = geometry.x + 2;
+            y = geometry.y + (geometry.height - allocation->height) / 2;
+        } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+            x = geometry.x + geometry.width - allocation->width - 2;
+            y = geometry.y + (geometry.height - allocation->height) / 2;
+        } else {
+            x = geometry.x + (geometry.width - allocation->width) / 2;
+            y = geometry.y + geometry.height - allocation->height - 2;
+        }
 
         gtk_window_move(GTK_WINDOW(widget), x, y);
+    }
+}
+
+/* Forward declarations if needed */
+void update_window_list(void);
+static void on_dock_realize(GtkWidget *widget, gpointer data);
+static gboolean get_primary_monitor_geometry(GdkDisplay *display, GdkRectangle *geom);
+
+static void apply_dock_position(void) {
+    if (!main_window || !box || !system_separator) return;
+
+    gboolean is_vertical = (current_dock_position == DOCK_POSITION_LEFT || current_dock_position == DOCK_POSITION_RIGHT);
+
+    gtk_orientable_set_orientation(GTK_ORIENTABLE(box), is_vertical ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL);
+    gtk_orientable_set_orientation(GTK_ORIENTABLE(system_separator), is_vertical ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL);
+
+    if (is_vertical) {
+        gtk_widget_set_margin_top(system_separator, 6);
+        gtk_widget_set_margin_bottom(system_separator, 8);
+        gtk_widget_set_margin_start(system_separator, 0);
+        gtk_widget_set_margin_end(system_separator, 0);
+        gtk_widget_set_size_request(system_separator, 28, 1);
+        gtk_window_set_default_size(GTK_WINDOW(main_window), 60, -1);
+    } else {
+        gtk_widget_set_margin_start(system_separator, 6);
+        gtk_widget_set_margin_end(system_separator, 8);
+        gtk_widget_set_margin_top(system_separator, 0);
+        gtk_widget_set_margin_bottom(system_separator, 0);
+        gtk_widget_set_size_request(system_separator, 1, 28);
+        gtk_window_set_default_size(GTK_WINDOW(main_window), -1, 60);
+    }
+
+    if (is_wayland_session) {
+        if (current_dock_position == DOCK_POSITION_TOP) {
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, 2);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+        } else if (current_dock_position == DOCK_POSITION_LEFT) {
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, FALSE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, 2);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, 0);
+        } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, FALSE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, 2);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, 0);
+        } else {
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, FALSE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, 2);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_LEFT, 0);
+            gtk_layer_set_margin(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+        }
+    } else {
+        GdkDisplay *display = gtk_widget_get_display(main_window);
+        GdkRectangle primary_geom = {0};
+        
+        if (get_primary_monitor_geometry(display, &primary_geom)) {
+            GtkAllocation alloc;
+            gtk_widget_get_allocation(main_window, &alloc);
+            int w = is_vertical ? 60 : alloc.width;
+            int h = is_vertical ? alloc.height : 60;
+            
+            int x, y;
+            if (current_dock_position == DOCK_POSITION_TOP) {
+                x = primary_geom.x + (primary_geom.width - w) / 2;
+                y = primary_geom.y + 2;
+            } else if (current_dock_position == DOCK_POSITION_LEFT) {
+                x = primary_geom.x + 2;
+                y = primary_geom.y + (primary_geom.height - h) / 2;
+            } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+                x = primary_geom.x + primary_geom.width - w - 2;
+                y = primary_geom.y + (primary_geom.height - h) / 2;
+            } else {
+                x = primary_geom.x + (primary_geom.width - w) / 2;
+                y = primary_geom.y + primary_geom.height - h - 2;
+            }
+            gtk_window_move(GTK_WINDOW(main_window), x, y);
+        }
+        
+        on_dock_realize(main_window, NULL);
+    }
+
+    if (current_dock_position == DOCK_POSITION_TOP) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_NORTH);
+    } else if (current_dock_position == DOCK_POSITION_LEFT) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_WEST);
+    } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_EAST);
+    } else {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_SOUTH);
+    }
+
+    update_window_list();
+}
+
+static void on_dock_config_changed(GFileMonitor *monitor, GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer user_data) {
+    (void)monitor;
+    (void)file;
+    (void)other_file;
+    (void)user_data;
+
+    if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT || event_type == G_FILE_MONITOR_EVENT_CREATED) {
+        DockPosition new_pos = get_dock_position();
+        if (new_pos != current_dock_position) {
+            current_dock_position = new_pos;
+            apply_dock_position();
+        }
     }
 }
 
@@ -1137,6 +1348,23 @@ int main(int argc, char *argv[]) {
     if (!dock_executable_path && argc > 0 && argv[0] && argv[0][0] != '\0') {
         dock_executable_path = g_strdup(argv[0]);
     }
+
+    current_dock_position = get_dock_position();
+    
+    /* Set up file monitor for config */
+    GFile *config_file_obj;
+    GFileMonitor *monitor;
+    gchar *config_dir = g_build_filename(g_get_user_config_dir(), "vaxp/dock", NULL);
+    gchar *config_path = g_build_filename(config_dir, "dock_state.vaxp", NULL);
+    
+    config_file_obj = g_file_new_for_path(config_path);
+    monitor = g_file_monitor_file(config_file_obj, G_FILE_MONITOR_NONE, NULL, NULL);
+    if (monitor) {
+        g_signal_connect(monitor, "changed", G_CALLBACK(on_dock_config_changed), NULL);
+    }
+    g_object_unref(config_file_obj);
+    g_free(config_path);
+    g_free(config_dir);
 
     is_wayland_session = TRUE;
     init_wayland_protocols();
@@ -1167,13 +1395,35 @@ int main(int argc, char *argv[]) {
     GdkRectangle primary_geom = {0};
     /* Set as DOCK - explicitly declare as dock window */
     gtk_window_set_type_hint(GTK_WINDOW(main_window), GDK_WINDOW_TYPE_HINT_DOCK);
-    gtk_window_set_default_size(GTK_WINDOW(main_window), -1, 60);
-    if (get_primary_monitor_geometry(display, &primary_geom)) {
-        gtk_window_move(GTK_WINDOW(main_window),
-                        primary_geom.x + (primary_geom.width / 2),
-                        primary_geom.y + primary_geom.height);
+    
+    gboolean is_vertical = (current_dock_position == DOCK_POSITION_LEFT || current_dock_position == DOCK_POSITION_RIGHT);
+    if (is_vertical) {
+        gtk_window_set_default_size(GTK_WINDOW(main_window), 60, -1);
+    } else {
+        gtk_window_set_default_size(GTK_WINDOW(main_window), -1, 60);
     }
-    gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_SOUTH);
+
+    if (get_primary_monitor_geometry(display, &primary_geom)) {
+        if (is_vertical) {
+            gtk_window_move(GTK_WINDOW(main_window),
+                            current_dock_position == DOCK_POSITION_LEFT ? primary_geom.x : primary_geom.x + primary_geom.width,
+                            primary_geom.y + (primary_geom.height / 2));
+        } else {
+            gtk_window_move(GTK_WINDOW(main_window),
+                            primary_geom.x + (primary_geom.width / 2),
+                            current_dock_position == DOCK_POSITION_TOP ? primary_geom.y : primary_geom.y + primary_geom.height);
+        }
+    }
+    
+    if (current_dock_position == DOCK_POSITION_TOP) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_NORTH);
+    } else if (current_dock_position == DOCK_POSITION_LEFT) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_WEST);
+    } else if (current_dock_position == DOCK_POSITION_RIGHT) {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_EAST);
+    } else {
+        gtk_window_set_gravity(GTK_WINDOW(main_window), GDK_GRAVITY_SOUTH);
+    }
     gtk_window_set_decorated(GTK_WINDOW(main_window), FALSE);
     gtk_widget_set_app_paintable(main_window, TRUE);
     
@@ -1190,7 +1440,8 @@ int main(int argc, char *argv[]) {
         gtk_widget_set_visual(main_window, visual);
     }
 
-    box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gboolean is_vertical_box = (current_dock_position == DOCK_POSITION_LEFT || current_dock_position == DOCK_POSITION_RIGHT);
+    box = gtk_box_new(is_vertical_box ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_widget_set_name(box, "dock-box"); /* ID for CSS */
     gtk_widget_set_halign(box, GTK_ALIGN_CENTER);
     gtk_widget_set_valign(box, GTK_ALIGN_CENTER);
@@ -1213,12 +1464,24 @@ int main(int argc, char *argv[]) {
     create_launcher_button(box);    /* Rightmost */
     create_trash_button(box);       /* Next to launcher */
     create_drives_area(box);        /* Drives appear to the left of trash */
-    system_separator = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+    system_separator = gtk_separator_new(is_vertical_box ? GTK_ORIENTATION_HORIZONTAL : GTK_ORIENTATION_VERTICAL);
     gtk_widget_set_name(system_separator, "system-separator");
     gtk_widget_set_valign(system_separator, GTK_ALIGN_CENTER);
-    gtk_widget_set_margin_start(system_separator, 6);
-    gtk_widget_set_margin_end(system_separator, 8);
-    gtk_widget_set_size_request(system_separator, 1, 28);
+    gtk_widget_set_halign(system_separator, GTK_ALIGN_CENTER);
+    
+    if (is_vertical_box) {
+        gtk_widget_set_margin_top(system_separator, 6);
+        gtk_widget_set_margin_bottom(system_separator, 8);
+        gtk_widget_set_margin_start(system_separator, 0);
+        gtk_widget_set_margin_end(system_separator, 0);
+        gtk_widget_set_size_request(system_separator, 28, 1);
+    } else {
+        gtk_widget_set_margin_start(system_separator, 6);
+        gtk_widget_set_margin_end(system_separator, 8);
+        gtk_widget_set_margin_top(system_separator, 0);
+        gtk_widget_set_margin_bottom(system_separator, 0);
+        gtk_widget_set_size_request(system_separator, 1, 28);
+    }
     gtk_box_pack_end(GTK_BOX(box), system_separator, FALSE, FALSE, 0);
     gtk_widget_show(system_separator);
 

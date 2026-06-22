@@ -282,9 +282,6 @@ menu.dock-context-menu separator {
 
 #system-separator {
     background-color: rgba(255, 255, 255, 0.14);
-    min-width: 1px;
-    min-height: 28px;
-    margin: 0 2px;
 }
 
 #context-menu-window {

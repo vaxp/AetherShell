@@ -328,3 +328,15 @@ venom_app_grid_remove_app (VenomAppGrid *grid, AppEntry *entry)
     /* Full rebuild of the filter with the current query (empty = show all) */
     rebuild_filter (grid, NULL);
 }
+
+void
+venom_app_grid_set_apps (VenomAppGrid *grid, GPtrArray *apps)
+{
+    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    
+    grid->all_apps = apps;
+    /* We don't know the current search query here, so the caller must
+       call venom_app_grid_set_filter() afterwards to restore it.
+       For now, we just rebuild with no filter. */
+    rebuild_filter (grid, NULL);
+}

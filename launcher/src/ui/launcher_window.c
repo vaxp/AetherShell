@@ -27,6 +27,9 @@ struct _VenomLauncherWindow {
     int           cached_width;
     int           cached_height;
     time_t        wallpaper_mtime;
+
+    GList        *dir_monitors;
+    guint         reload_source_id;
 };
 
 G_DEFINE_TYPE (VenomLauncherWindow, venom_launcher_window,
@@ -329,10 +332,95 @@ on_search_changed (GtkWidget *search, gpointer data)
  * GObject class init
  * ------------------------------------------------------------------------- */
 
+static gboolean
+reload_apps_idle_cb (gpointer data)
+{
+    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (data);
+    
+    self->reload_source_id = 0;
+
+    GPtrArray *new_apps = desktop_reader_load_apps ();
+    
+    if (self->apps)
+        g_ptr_array_unref (self->apps);
+        
+    self->apps = new_apps;
+    
+    venom_app_grid_set_apps (VENOM_APP_GRID (self->app_grid), self->apps);
+    
+    const char *query = venom_search_bar_get_text (VENOM_SEARCH_BAR (self->search_bar));
+    venom_app_grid_set_filter (VENOM_APP_GRID (self->app_grid), query);
+    
+    return G_SOURCE_REMOVE;
+}
+
+static void
+on_desktop_dir_changed (GFileMonitor *monitor, GFile *file, GFile *other_file,
+                        GFileMonitorEvent event_type, gpointer user_data)
+{
+    (void) monitor;
+    (void) file;
+    (void) other_file;
+    (void) event_type;
+    
+    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (user_data);
+    
+    if (self->reload_source_id != 0) {
+        g_source_remove (self->reload_source_id);
+    }
+    
+    self->reload_source_id = g_timeout_add (500, reload_apps_idle_cb, self);
+}
+
+static void
+setup_directory_monitors (VenomLauncherWindow *self)
+{
+    const char *dirs[] = {
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        NULL
+    };
+    
+    for (int i = 0; dirs[i] != NULL; i++) {
+        GFile *file = g_file_new_for_path (dirs[i]);
+        GFileMonitor *mon = g_file_monitor_directory (file, G_FILE_MONITOR_NONE, NULL, NULL);
+        if (mon) {
+            g_signal_connect (mon, "changed", G_CALLBACK (on_desktop_dir_changed), self);
+            self->dir_monitors = g_list_prepend (self->dir_monitors, mon);
+        }
+        g_object_unref (file);
+    }
+    
+    /* User directory */
+    const char *home = g_get_home_dir ();
+    if (home) {
+        char *user_dir = g_build_filename (home, ".local", "share", "applications", NULL);
+        GFile *file = g_file_new_for_path (user_dir);
+        GFileMonitor *mon = g_file_monitor_directory (file, G_FILE_MONITOR_NONE, NULL, NULL);
+        if (mon) {
+            g_signal_connect (mon, "changed", G_CALLBACK (on_desktop_dir_changed), self);
+            self->dir_monitors = g_list_prepend (self->dir_monitors, mon);
+        }
+        g_object_unref (file);
+        g_free (user_dir);
+    }
+}
+
 static void
 venom_launcher_window_finalize (GObject *obj)
 {
     VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (obj);
+
+    if (self->reload_source_id != 0) {
+        g_source_remove (self->reload_source_id);
+        self->reload_source_id = 0;
+    }
+
+    if (self->dir_monitors) {
+        g_list_free_full (self->dir_monitors, g_object_unref);
+        self->dir_monitors = NULL;
+    }
+
     if (self->apps)
         g_ptr_array_unref (self->apps);
     if (self->wallpaper_path)
@@ -384,6 +472,10 @@ venom_launcher_window_init (VenomLauncherWindow *self)
     self->wallpaper_surface = NULL;
     self->cached_width = 0;
     self->cached_height = 0;
+    self->dir_monitors = NULL;
+    self->reload_source_id = 0;
+
+    setup_directory_monitors (self);
     load_wallpaper (self);
 
     GtkWindow *win = GTK_WINDOW (self);

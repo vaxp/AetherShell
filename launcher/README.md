@@ -1,6 +1,6 @@
 # Venom Launcher
 
-A professional, macOS Launchpad-style application launcher for the Venom Desktop Environment. Built with **C11 + GTK3** using clean architecture and optimized for performance.
+A professional,  Launchpad-style application launcher for the Venom Desktop Environment. Built with **C11 + GTK3** using clean architecture and optimized for performance.
 
 ## Features
 

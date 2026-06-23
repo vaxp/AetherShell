@@ -23,5 +23,7 @@ void       venom_app_grid_go_next_page (VenomAppGrid *grid);
 void       venom_app_grid_go_prev_page (VenomAppGrid *grid);
 void       venom_app_grid_remove_app   (VenomAppGrid *grid,
                                         AppEntry     *entry);
+void       venom_app_grid_set_apps     (VenomAppGrid *grid,
+                                        GPtrArray    *apps);
 
 G_END_DECLS

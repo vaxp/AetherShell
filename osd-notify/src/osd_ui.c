@@ -1,5 +1,6 @@
 #include "osd_ui.h"
 #include <gtk-layer-shell.h>
+#include "config.h"
 #if defined(GDK_WINDOWING_WAYLAND)
 #include <gdk/gdkwayland.h>
 #include <wayland-client.h>
@@ -60,18 +61,35 @@ void osd_ui_update_position(OsdUi *ui, int width, int height) {
     GdkRectangle workarea;
     gdk_monitor_get_workarea(monitor, &workarea);
 
+    gboolean is_top = g_config.osd_position && strstr(g_config.osd_position, "top") != NULL;
+    gboolean is_bottom = g_config.osd_position && strstr(g_config.osd_position, "bottom") != NULL;
+
     int x = workarea.x + (workarea.width - width) / 2;
     int y = workarea.y + (workarea.height - height) / 2;
 
+    if (is_top) {
+        y = workarea.y + g_config.notify_margin_y;
+    } else if (is_bottom) {
+        y = workarea.y + workarea.height - height - g_config.notify_margin_y;
+    }
+
     if (ui->use_layer_shell) {
-        gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+        if (is_top) {
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+            gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, g_config.notify_margin_y);
+        } else if (is_bottom) {
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, FALSE);
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+            gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, g_config.notify_margin_y);
+        } else {
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+            gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+            gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, y);
+        }
         gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
         gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_RIGHT, FALSE);
-        gtk_layer_set_anchor(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
         gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_LEFT, x);
-        gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_TOP, y);
-        gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
-        gtk_layer_set_margin(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_EDGE_BOTTOM, 0);
         gtk_layer_set_monitor(GTK_WINDOW(ui->window), monitor);
     } else {
         gtk_window_move(GTK_WINDOW(ui->window), x, y);

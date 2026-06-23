@@ -1,5 +1,6 @@
 #include "osd_logic_draw.h"
 #include "osd_logic_state.h"
+#include "config.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -20,7 +21,7 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double w, double 
 }
 
 static void draw_icon_speaker(cairo_t *cr, double cx, double cy, double size, int muted) {
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_set_source_rgba(cr, g_config.osd_icon_normal.red, g_config.osd_icon_normal.green, g_config.osd_icon_normal.blue, g_config.osd_icon_normal.alpha);
     cairo_set_line_width(cr, 4.0);
     cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
 
@@ -35,14 +36,14 @@ static void draw_icon_speaker(cairo_t *cr, double cx, double cy, double size, in
     cairo_fill(cr);
 
     if (muted) {
-        cairo_set_source_rgb(cr, 1.0, 0.2, 0.2);
+        cairo_set_source_rgba(cr, g_config.osd_icon_muted.red, g_config.osd_icon_muted.green, g_config.osd_icon_muted.blue, g_config.osd_icon_muted.alpha);
         cairo_move_to(cr, cx + size*0.1, cy - size*0.2);
         cairo_line_to(cr, cx + size*0.5, cy + size*0.2);
         cairo_move_to(cr, cx + size*0.5, cy - size*0.2);
         cairo_line_to(cr, cx + size*0.1, cy + size*0.2);
         cairo_stroke(cr);
     } else {
-        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        cairo_set_source_rgba(cr, g_config.osd_icon_normal.red, g_config.osd_icon_normal.green, g_config.osd_icon_normal.blue, g_config.osd_icon_normal.alpha);
         cairo_arc(cr, cx + size*0.2, cy, size*0.2, -M_PI/4, M_PI/4);
         cairo_stroke(cr);
         cairo_arc(cr, cx + size*0.2, cy, size*0.4, -M_PI/4, M_PI/4);
@@ -51,7 +52,7 @@ static void draw_icon_speaker(cairo_t *cr, double cx, double cy, double size, in
 }
 
 static void draw_icon_sun(cairo_t *cr, double cx, double cy, double size) {
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_set_source_rgba(cr, g_config.osd_icon_normal.red, g_config.osd_icon_normal.green, g_config.osd_icon_normal.blue, g_config.osd_icon_normal.alpha);
     cairo_set_line_width(cr, 4.0);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 
@@ -72,7 +73,7 @@ static void draw_icon_microphone(cairo_t *cr, double cx, double cy, double size,
     double body_h = size * 0.55;
     double radius = body_w / 2.0;
 
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_set_source_rgba(cr, g_config.osd_icon_normal.red, g_config.osd_icon_normal.green, g_config.osd_icon_normal.blue, g_config.osd_icon_normal.alpha);
     cairo_set_line_width(cr, 4.0);
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
     cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
@@ -92,7 +93,7 @@ static void draw_icon_microphone(cairo_t *cr, double cx, double cy, double size,
     cairo_stroke(cr);
 
     if (muted) {
-        cairo_set_source_rgb(cr, 1.0, 0.2, 0.2);
+        cairo_set_source_rgba(cr, g_config.osd_icon_muted.red, g_config.osd_icon_muted.green, g_config.osd_icon_muted.blue, g_config.osd_icon_muted.alpha);
         cairo_set_line_width(cr, 4.0);
         cairo_move_to(cr, cx - size * 0.45, cy - size * 0.45);
         cairo_line_to(cr, cx + size * 0.45, cy + size * 0.45);
@@ -123,7 +124,7 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
 
     // Rounded background (old style)
     draw_rounded_rect(cr, x, y, w, h, OSD_RADIUS);
-    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.3);
+    cairo_set_source_rgba(cr, g_config.osd_bg.red, g_config.osd_bg.green, g_config.osd_bg.blue, g_config.osd_bg.alpha);
     cairo_fill(cr);
 
     cairo_save(cr);
@@ -133,7 +134,7 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
     OsdType type = osd_logic_state_get_type();
     if (type == OSD_KEYBOARD) {
         const char *text = osd_logic_state_get_text();
-        cairo_set_source_rgb(cr, 0.0, 1.0, 1.0);
+        cairo_set_source_rgba(cr, g_config.osd_text.red, g_config.osd_text.green, g_config.osd_text.blue, g_config.osd_text.alpha);
         cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
         cairo_set_font_size(cr, FONT_SIZE);
 
@@ -171,7 +172,7 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
         double bar_y = y + h - 30.0;
 
         draw_rounded_rect(cr, bar_x, bar_y, bar_w, bar_h, bar_h/2.0);
-        cairo_set_source_rgba(cr, 0.3, 0.3, 0.3, 1.0);
+        cairo_set_source_rgba(cr, g_config.osd_bar_bg.red, g_config.osd_bar_bg.green, g_config.osd_bar_bg.blue, g_config.osd_bar_bg.alpha);
         cairo_fill(cr);
 
         if (percentage > 0) {
@@ -182,9 +183,9 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
             double fill_w = bar_w * fill_ratio;
             draw_rounded_rect(cr, bar_x, bar_y, fill_w, bar_h, bar_h/2.0);
             if (type == OSD_VOLUME && osd_logic_state_get_muted()) {
-                cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
+                cairo_set_source_rgba(cr, g_config.osd_icon_muted.red, g_config.osd_icon_muted.green, g_config.osd_icon_muted.blue, g_config.osd_icon_muted.alpha);
             } else {
-                cairo_set_source_rgb(cr, 0.0, 1.0, 1.0);
+                cairo_set_source_rgba(cr, g_config.osd_bar_fg.red, g_config.osd_bar_fg.green, g_config.osd_bar_fg.blue, g_config.osd_bar_fg.alpha);
             }
             cairo_fill(cr);
         }
@@ -194,7 +195,7 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
             snprintf(val_str, sizeof(val_str), "%d%%", (int)percentage);
             cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
             cairo_set_font_size(cr, 16.0);
-            cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+            cairo_set_source_rgba(cr, g_config.osd_text.red, g_config.osd_text.green, g_config.osd_text.blue, g_config.osd_text.alpha);
             cairo_text_extents_t extents;
             cairo_text_extents(cr, val_str, &extents);
             cairo_move_to(cr, (width - extents.width)/2.0 - extents.x_bearing, bar_y - 10.0);
@@ -205,7 +206,7 @@ gboolean osd_logic_draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
             const char *mic_text = osd_logic_state_get_mic_text();
             cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
             cairo_set_font_size(cr, 16.0);
-            cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+            cairo_set_source_rgba(cr, g_config.osd_text.red, g_config.osd_text.green, g_config.osd_text.blue, g_config.osd_text.alpha);
             cairo_text_extents_t extents;
             cairo_text_extents(cr, mic_text, &extents);
             cairo_move_to(cr, (width - extents.width)/2.0 - extents.x_bearing, bar_y - 10.0);

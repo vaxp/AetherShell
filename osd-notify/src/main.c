@@ -3,12 +3,23 @@
 #include "notify.h"
 #include "osd_sound.h"
 #include "osd_udev.h"
+#include "config.h"
+
+static void on_config_reloaded(void) {
+    g_print("🎨 Configuration reloaded\n");
+    notify_reload_ui();
+    osd_sound_reload();
+}
 
 int main(int argc, char *argv[]) {
     // تهيئة GTK
     gtk_init(&argc, &argv);
 
     g_print("🎨 Starting venom_gui (OSD + Notify)\n");
+
+    // Load configuration
+    config_init();
+    config_monitor_init(on_config_reloaded);
 
     // تهيئة نظام الصوت
     osd_sound_init();

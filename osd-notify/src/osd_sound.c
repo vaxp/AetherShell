@@ -1,5 +1,6 @@
 #include "osd_sound.h"
 #include "osd_logic_audio.h"
+#include "config.h"
 #include <glib.h>
 #include <stdio.h>
 #include <limits.h>
@@ -34,34 +35,54 @@ static gint64 last_stop_time = 0;
 static const char* get_sound_file_path(OsdSoundEvent event) {
     static char path[PATH_MAX];
     const char *filename = NULL;
+    const char *configured_path = NULL;
 
     switch (event) {
         case OSD_SOUND_NOTIFICATION:
+            configured_path = g_config.sound_notification;
             filename = "notification.mp3";
             break;
         case OSD_SOUND_CHARGER_CONNECT:
+            configured_path = g_config.sound_charger_connect;
             filename = "soundshelfstudio-ui-notification-for-pc-526570.mp3";
             break;
         case OSD_SOUND_CHARGER_DISCONNECT:
+            configured_path = g_config.sound_charger_disconnect;
             filename = "soundshelfstudio-ui-notification-pop-minimal-523149.mp3";
             break;
         case OSD_SOUND_USB_CONNECT:
+            configured_path = g_config.sound_usb_connect;
             filename = "universfield-new-notification-014-363678.mp3";
             break;
         case OSD_SOUND_USB_DISCONNECT:
+            configured_path = g_config.sound_usb_disconnect;
             filename = "quiandrea96-notification-457196.mp3";
             break;
         case OSD_SOUND_LIMIT_HIGH:
+            configured_path = g_config.sound_limit_high;
             filename = "47313572-notification-alert-269289.mp3";
             break;
         case OSD_SOUND_LIMIT_LOW:
+            configured_path = g_config.sound_limit_low;
             filename = "u_4quckyrjhw-notification-sound-349341.mp3";
             break;
         case OSD_SOUND_ERROR:
+            configured_path = g_config.sound_error;
             filename = "47313572-notification-alert-269289.mp3";
             break;
         default:
             return NULL;
+    }
+
+    if (configured_path && strlen(configured_path) > 0) {
+        if (g_path_is_absolute(configured_path)) {
+            if (g_file_test(configured_path, G_FILE_TEST_EXISTS)) {
+                g_strlcpy(path, configured_path, sizeof(path));
+                return path;
+            }
+        } else {
+            filename = configured_path;
+        }
     }
 
     // Try multiple paths:
@@ -220,6 +241,17 @@ void osd_sound_init(void) {
     }
 }
 
+void osd_sound_reload(void) {
+    for (int i = 0; i < OSD_SOUND_EVENT_COUNT; i++) {
+        if (loaded_sounds[i].data) {
+            g_free(loaded_sounds[i].data);
+            loaded_sounds[i].data = NULL;
+            loaded_sounds[i].size = 0;
+        }
+    }
+    osd_sound_init();
+}
+
 static void stream_write_cb(pa_stream *s, size_t length, void *userdata) {
     PlayInfo *pi = (PlayInfo *)userdata;
     if (!pi) return;
@@ -255,6 +287,7 @@ static void stream_state_cb(pa_stream *s, void *userdata) {
             pa_stream_set_write_callback(s, NULL, NULL);
             pa_stream_set_state_callback(s, NULL, NULL);
             pa_stream_unref(s);
+            if (pi->data) g_free(pi->data);
             g_free(pi);
             g_atomic_int_add(&active_streams_count, -1);
             last_stop_time = g_get_monotonic_time();
@@ -289,7 +322,8 @@ static gboolean play_sound_deferred(gpointer data) {
     }
 
     PlayInfo *pi = g_new0(PlayInfo, 1);
-    pi->data = sample->data;
+    pi->data = g_malloc(sample->size);
+    memcpy(pi->data, sample->data, sample->size);
     pi->size = sample->size;
     pi->offset = 0;
 

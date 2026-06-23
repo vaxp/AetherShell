@@ -490,3 +490,12 @@ void notify_init(void) {
     g_bus_own_name(G_BUS_TYPE_SESSION, "org.freedesktop.Notifications",
                    G_BUS_NAME_OWNER_FLAGS_REPLACE, on_bus_acquired, NULL, NULL, NULL, NULL);
 }
+
+void notify_reload_ui(void) {
+    notify_ui_init(); // Reload CSS
+    notify_ui_reposition(active_notifications, notify_use_layer_shell);
+    for (GList *l = active_notifications; l != NULL; l = l->next) {
+        VenomNotification *n = (VenomNotification *)l->data;
+        gtk_widget_queue_draw(n->win);
+    }
+}

@@ -16,6 +16,7 @@ typedef enum {
 } OsdSoundEvent;
 
 void osd_sound_init(void);
+void osd_sound_reload(void);
 void osd_sound_play(OsdSoundEvent event);
 gboolean osd_sound_should_ignore_events(void);
 

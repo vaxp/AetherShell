@@ -1,14 +1,12 @@
 #include "notify_ui.h"
 #include <gtk-layer-shell.h>
+#include "config.h"
 #if defined(GDK_WINDOWING_WAYLAND)
 #include <gdk/gdkwayland.h>
 #endif
 
 // --- إعدادات التصميم الأساسية ---
 #define NOTIFY_WIDTH 340
-#define MARGIN_X 20
-#define MARGIN_Y 50
-#define SPACING 10
 
 typedef struct {
     guint32 notification_id;
@@ -54,10 +52,10 @@ static gboolean draw_notification_background(GtkWidget *widget, cairo_t *cr, gpo
     cairo_arc(cr, radius, radius, radius, G_PI, 3.0 * G_PI / 2.0);
     cairo_close_path(cr);
 
-    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.392);
+    cairo_set_source_rgba(cr, g_config.notify_bg.red, g_config.notify_bg.green, g_config.notify_bg.blue, g_config.notify_bg.alpha);
     cairo_fill_preserve(cr);
 
-    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.392);
+    cairo_set_source_rgba(cr, g_config.notify_border.red, g_config.notify_border.green, g_config.notify_border.blue, g_config.notify_border.alpha);
     cairo_set_line_width(cr, 1.5);
     cairo_stroke(cr);
 
@@ -88,43 +86,63 @@ static void update_notification_icon(GtkWidget *image, const char *icon) {
     gtk_image_set_pixel_size(GTK_IMAGE(image), 48);
 }
 
+static GtkCssProvider *global_provider = NULL;
+
 void notify_ui_init(void) {
-    GtkCssProvider *provider = gtk_css_provider_new();
-    const gchar *css =
+    if (!global_provider) {
+        global_provider = gtk_css_provider_new();
+        GdkScreen *screen = gdk_screen_get_default();
+        if (screen) {
+            gtk_style_context_add_provider_for_screen(screen,
+                                                      GTK_STYLE_PROVIDER(global_provider),
+                                                      GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+        }
+    }
+    
+    char *bg_str = gdk_rgba_to_string(&g_config.notify_bg);
+    char *border_str = gdk_rgba_to_string(&g_config.notify_border);
+    char *title_str = gdk_rgba_to_string(&g_config.notify_title_text);
+    char *body_str = gdk_rgba_to_string(&g_config.notify_body_text);
+    char *btn_bg_str = gdk_rgba_to_string(&g_config.notify_btn_bg);
+    char *btn_text_str = gdk_rgba_to_string(&g_config.notify_btn_text);
+    char *btn_hbg_str = gdk_rgba_to_string(&g_config.notify_btn_hover_bg);
+    char *btn_htext_str = gdk_rgba_to_string(&g_config.notify_btn_hover_text);
+
+    gchar *css = g_strdup_printf(
         "window.venom-notify {"
-        "   background-color: rgba(0, 0, 0, 0.392);"
-        "   background: rgba(0, 0, 0, 0.392);;"
-        "   border: 1.5px solid rgba(0, 255, 255, 0.8);"
+        "   background-color: %s;"
+        "   background: %s;"
+        "   border: 1.5px solid %s;"
         "   border-radius: 8px;"
         "}"
         "label.notify-title {"
-        "   color: #00FFFF;"
+        "   color: %s;"
         "   font-weight: bold;"
         "   font-size: 11pt;"
         "}"
         "label.notify-body {"
-        "   color: #EEEEEE;"
+        "   color: %s;"
         "   font-size: 10pt;"
         "}"
         "button {"
-        "   background-color: #222222;"
-        "   color: #00FFFF;"
-        "   border: 1px solid #00FFFF;"
+        "   background-color: %s;"
+        "   color: %s;"
+        "   border: 1px solid %s;"
         "   border-radius: 4px;"
         "   padding: 4px;"
         "}"
         "button:hover {"
-        "   background-color: #00FFFF;"
-        "   color: #000000;"
-        "}";
-    gtk_css_provider_load_from_data(provider, css, -1, NULL);
-    GdkScreen *screen = gdk_screen_get_default();
-    if (screen) {
-        gtk_style_context_add_provider_for_screen(screen,
-                                                  GTK_STYLE_PROVIDER(provider),
-                                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-    }
-    g_object_unref(provider);
+        "   background-color: %s;"
+        "   color: %s;"
+        "}",
+        bg_str, bg_str, border_str, title_str, body_str, btn_bg_str, btn_text_str, btn_text_str, btn_hbg_str, btn_htext_str
+    );
+
+    g_free(bg_str); g_free(border_str); g_free(title_str); g_free(body_str);
+    g_free(btn_bg_str); g_free(btn_text_str); g_free(btn_hbg_str); g_free(btn_htext_str);
+
+    gtk_css_provider_load_from_data(global_provider, css, -1, NULL);
+    g_free(css);
 }
 
 void notify_ui_setup_window(VenomNotification *notification,
@@ -154,8 +172,21 @@ void notify_ui_setup_window(VenomNotification *notification,
         gtk_layer_set_namespace(GTK_WINDOW(notification->win), "venom-notify");
         gtk_layer_set_layer(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_LAYER_TOP);
         gtk_layer_set_keyboard_mode(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
-        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+        
+        gboolean is_top = strstr(g_config.notify_position, "top") != NULL;
+        gboolean is_bottom = strstr(g_config.notify_position, "bottom") != NULL;
+        gboolean is_right = strstr(g_config.notify_position, "right") != NULL;
+        gboolean is_left = strstr(g_config.notify_position, "left") != NULL;
+        gboolean is_center = strstr(g_config.notify_position, "center") != NULL;
+        
+        // إذا لم يتم تحديد أي اتجاه، نعتبره اليمين (ما لم يكن مركزاً)
+        if (!is_right && !is_left && !is_center) is_right = TRUE;
+        if (!is_top && !is_bottom) is_top = TRUE;
+
+        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_TOP, is_top);
+        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_BOTTOM, is_bottom);
+        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_RIGHT, is_right);
+        gtk_layer_set_anchor(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_EDGE_LEFT, is_left);
     }
 
     // تفعيل الشفافية
@@ -320,6 +351,16 @@ void notify_ui_reposition(GList *active_notifications, gboolean use_layer_shell)
         gdk_monitor_get_workarea(monitor, &workarea);
     }
 
+    gboolean is_top = strstr(g_config.notify_position, "top") != NULL;
+    gboolean is_bottom = strstr(g_config.notify_position, "bottom") != NULL;
+    gboolean is_right = strstr(g_config.notify_position, "right") != NULL;
+    gboolean is_left = strstr(g_config.notify_position, "left") != NULL;
+    gboolean is_center = strstr(g_config.notify_position, "center") != NULL;
+    
+    // Default to top-right if invalid
+    if (!is_top && !is_bottom) is_top = TRUE;
+    if (!is_right && !is_left && !is_center) is_right = TRUE;
+
     for (GList *l = active_notifications; l != NULL; l = l->next) {
         VenomNotification *n = (VenomNotification *)l->data;
         gint width = NOTIFY_WIDTH;
@@ -331,13 +372,21 @@ void notify_ui_reposition(GList *active_notifications, gboolean use_layer_shell)
             height = min_req.height;
         }
 
-        int y = MARGIN_Y + (count * (height + SPACING));
+        int y = g_config.notify_margin_y + (count * (height + g_config.notify_spacing));
         if (use_layer_shell) {
-            gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_TOP, y);
-            gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_RIGHT, MARGIN_X);
+            if (is_top) gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_TOP, y);
+            if (is_bottom) gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_BOTTOM, y);
+            if (is_right) gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_RIGHT, g_config.notify_margin_x);
+            if (is_left) gtk_layer_set_margin(GTK_WINDOW(n->win), GTK_LAYER_SHELL_EDGE_LEFT, g_config.notify_margin_x);
         } else {
-            int x = workarea.width - width - MARGIN_X;
-            gtk_window_move(GTK_WINDOW(n->win), x, y);
+            int x;
+            if (is_center) {
+                x = workarea.x + (workarea.width - width) / 2;
+            } else {
+                x = is_right ? (workarea.width - width - g_config.notify_margin_x) : g_config.notify_margin_x;
+            }
+            int actual_y = is_top ? y : (workarea.height - y - height);
+            gtk_window_move(GTK_WINDOW(n->win), x, actual_y);
         }
         count++;
     }

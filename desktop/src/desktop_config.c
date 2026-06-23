@@ -11,6 +11,10 @@ char *get_vaxp_config_path(const char *filename) {
     return g_build_filename(g_get_user_config_dir(), "vaxp", "desktop", filename, NULL);
 }
 
+char *get_vaxp_main_config_path(void) {
+    return get_vaxp_config_path("desktop.vaxp");
+}
+
 char *get_vaxp_cache_path(const char *filename) {
     return g_build_filename(g_get_user_cache_dir(), "vaxp-thumbnails", filename, NULL);
 }
@@ -22,21 +26,25 @@ void ensure_config_dir(void) {
 }
 
 DesktopMode get_current_desktop_mode(void) {
-    char *contents = NULL;
-    gsize length = 0;
-    char *mode_config = get_vaxp_config_path("desktop-mode");
+    char *mode_str = NULL;
+    char *main_config = get_vaxp_main_config_path();
     DesktopMode mode = MODE_NORMAL;
+    GKeyFile *kf = g_key_file_new();
 
-    if (g_file_get_contents(mode_config, &contents, &length, NULL)) {
-        if (g_str_has_prefix(contents, "work")) {
-            mode = MODE_WORK;
-        } else if (g_str_has_prefix(contents, "widgets")) {
-            mode = MODE_WIDGETS;
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        mode_str = g_key_file_get_string(kf, "Desktop", "Mode", NULL);
+        if (mode_str) {
+            if (g_str_has_prefix(mode_str, "work")) {
+                mode = MODE_WORK;
+            } else if (g_str_has_prefix(mode_str, "widgets")) {
+                mode = MODE_WIDGETS;
+            }
+            g_free(mode_str);
         }
-        g_free(contents);
     }
 
-    g_free(mode_config);
+    g_key_file_free(kf);
+    g_free(main_config);
     return mode;
 }
 
@@ -48,9 +56,15 @@ void set_current_desktop_mode(DesktopMode mode) {
     if (mode == MODE_WORK) str = "work";
     else if (mode == MODE_WIDGETS) str = "widgets";
 
-    char *mode_config = get_vaxp_config_path("desktop-mode");
-    g_file_set_contents(mode_config, str, -1, NULL);
-    g_free(mode_config);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_string(kf, "Desktop", "Mode", str);
+    g_key_file_save_to_file(kf, main_config, NULL);
+
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 DesktopSortMode get_current_sort_mode(void) {

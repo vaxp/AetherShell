@@ -28,6 +28,7 @@ typedef enum {
 #define GRID_X 20
 #define GRID_Y 20
 char *get_vaxp_config_path(const char *filename);
+char *get_vaxp_main_config_path(void);
 char *get_vaxp_cache_path(const char *filename);
 
 void ensure_config_dir(void);

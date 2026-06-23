@@ -10,6 +10,10 @@ static char *get_vaxp_config_path(const char *filename) {
     return g_build_filename(g_get_user_config_dir(), "vaxp", "desktop", filename, NULL);
 }
 
+static char *get_vaxp_main_config_path(void) {
+    return get_vaxp_config_path("desktop.vaxp");
+}
+
 static char *get_vaxp_cache_path(const char *filename) {
     return g_build_filename(g_get_user_cache_dir(), "vaxp-thumbnails", filename, NULL);
 }
@@ -49,46 +53,58 @@ static gboolean is_video_file_ext(const char *name) {
 
 static void set_wallpaper(const char *path) {
     ensure_config_dir();
-    char *wallpaper_config = get_vaxp_config_path("wallpaper");
-    g_file_set_contents(wallpaper_config, path, -1, NULL);
-    g_free(wallpaper_config);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_string(kf, "Desktop", "Wallpaper", path);
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 static void on_anim_changed(GtkComboBox *combo, gpointer user_data) {
     (void)user_data;
     int id = gtk_combo_box_get_active(combo);
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d\n", id);
     ensure_config_dir();
-    char *anim_config = get_vaxp_config_path("wallpaper-anim");
-    g_file_set_contents(anim_config, buf, -1, NULL);
-    g_free(anim_config);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_integer(kf, "Desktop", "WallpaperAnim", id);
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 static int get_saved_anim(void) {
-    char *contents = NULL;
     int id = 0;
-    char *anim_config = get_vaxp_config_path("wallpaper-anim");
-    if (g_file_get_contents(anim_config, &contents, NULL, NULL)) {
-        id = atoi(contents);
-        g_free(contents);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        GError *err = NULL;
+        int a = g_key_file_get_integer(kf, "Desktop", "WallpaperAnim", &err);
+        if (!err) id = a;
+        else g_error_free(err);
     }
-    g_free(anim_config);
+    g_key_file_free(kf);
+    g_free(main_config);
     if (id < 0 || id > 9) id = 0;
     return id;
 }
 
 static int get_saved_volume(void) {
-    char *contents = NULL;
     int vol = 0;
-    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
-    if (g_file_get_contents(vol_cfg, &contents, NULL, NULL)) {
-        vol = atoi(contents);
-        if (vol < 0) vol = 0;
-        if (vol > 100) vol = 100;
-        g_free(contents);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        GError *err = NULL;
+        int v = g_key_file_get_integer(kf, "Desktop", "VideoVolume", &err);
+        if (!err) vol = v;
+        else g_error_free(err);
     }
-    g_free(vol_cfg);
+    g_key_file_free(kf);
+    g_free(main_config);
+    if (vol < 0) vol = 0;
+    if (vol > 100) vol = 100;
     return vol;
 }
 
@@ -230,21 +246,32 @@ static void on_browse_folder_clicked(GtkButton *btn, gpointer user_data) {
             add_images_from_dir(folder, bd->img_flow);
             add_videos_from_dir(folder, bd->vid_flow);
 
-            char *existing = NULL;
-            char *dirs_cfg = get_vaxp_config_path("wallpaper-dirs");
-            g_file_get_contents(dirs_cfg, &existing, NULL, NULL);
-            gboolean already = existing && strstr(existing, folder);
-            if (!already) {
-                GString *buf = g_string_new(existing ? existing : "");
-                if (buf->len > 0 && buf->str[buf->len - 1] != '\n')
-                    g_string_append_c(buf, '\n');
-                g_string_append_printf(buf, "%s\n", folder);
-                ensure_config_dir();
-                g_file_set_contents(dirs_cfg, buf->str, -1, NULL);
-                g_string_free(buf, TRUE);
+            char **existing_dirs = NULL;
+            gsize num_dirs = 0;
+            char *main_config = get_vaxp_main_config_path();
+            GKeyFile *kf = g_key_file_new();
+            g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+            existing_dirs = g_key_file_get_string_list(kf, "Desktop", "WallpaperDirs", &num_dirs, NULL);
+            
+            gboolean already = FALSE;
+            for (gsize i = 0; i < num_dirs; i++) {
+                if (g_strcmp0(existing_dirs[i], folder) == 0) {
+                    already = TRUE;
+                    break;
+                }
             }
-            g_free(dirs_cfg);
-            g_free(existing);
+            if (!already) {
+                char **new_dirs = g_new0(char *, num_dirs + 2);
+                for (gsize i = 0; i < num_dirs; i++) new_dirs[i] = existing_dirs[i];
+                new_dirs[num_dirs] = folder;
+                ensure_config_dir();
+                g_key_file_set_string_list(kf, "Desktop", "WallpaperDirs", (const gchar * const *)new_dirs, num_dirs + 1);
+                g_key_file_save_to_file(kf, main_config, NULL);
+                g_free(new_dirs);
+            }
+            g_strfreev(existing_dirs);
+            g_key_file_free(kf);
+            g_free(main_config);
             g_free(folder);
         }
     }
@@ -265,12 +292,14 @@ static void on_wallpaper_selected(GtkFlowBox *box, GtkFlowBoxChild *child,
 static void on_volume_changed(GtkRange *range, gpointer user_data) {
     (void)user_data;
     int vol = (int)gtk_range_get_value(range);
-    char buf[16];
-    snprintf(buf, sizeof(buf), "%d", vol);
     ensure_config_dir();
-    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
-    g_file_set_contents(vol_cfg, buf, -1, NULL);
-    g_free(vol_cfg);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_integer(kf, "Desktop", "VideoVolume", vol);
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 /* ── main ──────────────────────────────────────────────────────── */
@@ -409,21 +438,23 @@ int main(int argc, char *argv[]) {
     /* ── Populate images ── */
     add_images_from_dir(WALLPAPER_DIR, img_flow);
     {
-        char *dirs_content = NULL;
-        char *dirs_cfg = get_vaxp_config_path("wallpaper-dirs");
-        if (g_file_get_contents(dirs_cfg, &dirs_content, NULL, NULL)) {
-            gchar **lines = g_strsplit(dirs_content, "\n", -1);
-            for (int i = 0; lines[i] != NULL; i++) {
-                g_strstrip(lines[i]);
-                if (strlen(lines[i]) > 1 && lines[i][0] == '/') {
-                    add_images_from_dir(lines[i], img_flow);
-                    add_videos_from_dir(lines[i], vid_flow);
+        char *main_config = get_vaxp_main_config_path();
+        GKeyFile *kf = g_key_file_new();
+        if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+            gsize num_dirs = 0;
+            char **dirs = g_key_file_get_string_list(kf, "Desktop", "WallpaperDirs", &num_dirs, NULL);
+            if (dirs) {
+                for (gsize i = 0; i < num_dirs; i++) {
+                    if (strlen(dirs[i]) > 1 && dirs[i][0] == '/') {
+                        add_images_from_dir(dirs[i], img_flow);
+                        add_videos_from_dir(dirs[i], vid_flow);
+                    }
                 }
+                g_strfreev(dirs);
             }
-            g_strfreev(lines);
-            g_free(dirs_content);
         }
-        g_free(dirs_cfg);
+        g_key_file_free(kf);
+        g_free(main_config);
     }
 
     /* Also scan default video dirs */

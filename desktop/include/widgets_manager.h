@@ -10,6 +10,7 @@
 
 void load_all_widgets(GtkWidget *layout);
 void reload_widgets(void);
+void load_widget_theme_config(void);
 void apply_widget_visibility(GtkWidget *root);
 
 void on_mode_normal(GtkWidget *item, gpointer data);

@@ -110,14 +110,17 @@ static void on_mpv_update(void *ctx)
 /* ── Read saved volume ────────────────────────────────────────────── */
 static int read_saved_volume(void)
 {
-    char *buf = NULL;
     int vol = 0;
-    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
-    if (g_file_get_contents(vol_cfg, &buf, NULL, NULL)) {
-        vol = CLAMP(atoi(buf), 0, 100);
-        g_free(buf);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        GError *err = NULL;
+        int v = g_key_file_get_integer(kf, "Desktop", "VideoVolume", &err);
+        if (!err) vol = CLAMP(v, 0, 100);
+        else g_error_free(err);
     }
-    g_free(vol_cfg);
+    g_key_file_free(kf);
+    g_free(main_config);
     return vol;
 }
 
@@ -250,9 +253,13 @@ void video_wallpaper_set_volume(int volume)
     mpv_set_property_string(g_mpv, "volume", vs);
 
     ensure_config_dir();
-    char *vol_cfg = get_vaxp_config_path("video-wallpaper-volume");
-    g_file_set_contents(vol_cfg, vs, -1, NULL);
-    g_free(vol_cfg);
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_integer(kf, "Desktop", "VideoVolume", volume);
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 /*

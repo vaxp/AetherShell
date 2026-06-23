@@ -16,13 +16,7 @@ static char *get_widgets_dir(void) {
     return get_vaxp_config_path("widgets");
 }
 
-static char *get_widgets_enabled_config(void) {
-    return get_vaxp_config_path("widgets-enabled");
-}
 
-static char *get_widgets_theme_config(void) {
-    return get_vaxp_config_path("widgets-theme");
-}
 
 typedef struct {
     void *dl_handle;
@@ -59,30 +53,30 @@ static void update_all_widgets_theme(void) {
 static void save_widget_theme_config(void) {
     GKeyFile *kf = g_key_file_new();
     ensure_config_dir();
-    char *theme_cfg = get_widgets_theme_config();
-    g_key_file_load_from_file(kf, theme_cfg, G_KEY_FILE_NONE, NULL);
-    g_key_file_set_string(kf, "Theme", "Color", current_widget_bg_color);
-    g_key_file_set_double(kf, "Theme", "Opacity", current_widget_bg_opacity);
-    g_key_file_save_to_file(kf, theme_cfg, NULL);
-    g_free(theme_cfg);
+    char *main_config = get_vaxp_main_config_path();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
+    g_key_file_set_string(kf, "WidgetsTheme", "Color", current_widget_bg_color);
+    g_key_file_set_double(kf, "WidgetsTheme", "Opacity", current_widget_bg_opacity);
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_free(main_config);
     g_key_file_free(kf);
 }
 
-static void load_widget_theme_config(void) {
+void load_widget_theme_config(void) {
     GKeyFile *kf = g_key_file_new();
-    char *theme_cfg = get_widgets_theme_config();
-    if (g_key_file_load_from_file(kf, theme_cfg, G_KEY_FILE_NONE, NULL)) {
-        char *col = g_key_file_get_string(kf, "Theme", "Color", NULL);
+    char *main_config = get_vaxp_main_config_path();
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        char *col = g_key_file_get_string(kf, "WidgetsTheme", "Color", NULL);
         if (col) {
             strncpy(current_widget_bg_color, col, sizeof(current_widget_bg_color) - 1);
             g_free(col);
         }
         GError *err = NULL;
-        double op = g_key_file_get_double(kf, "Theme", "Opacity", &err);
+        double op = g_key_file_get_double(kf, "WidgetsTheme", "Opacity", &err);
         if (!err) current_widget_bg_opacity = op;
         else g_error_free(err);
     }
-    g_free(theme_cfg);
+    g_free(main_config);
     g_key_file_free(kf);
     update_all_widgets_theme(); /* In case widgets were already loaded */
 }
@@ -128,7 +122,6 @@ static void widget_unload(const char *fname) {
     }
 
     if (w->dl_handle) {
-        dlclose(w->dl_handle);
         w->dl_handle = NULL;
     }
 
@@ -270,78 +263,73 @@ static gboolean widget_ensure_ui(const char *fname, GtkWidget *layout, gboolean 
 }
 
 static gboolean is_widget_enabled(const char *fname) {
-    char *contents = NULL;
-    gsize len = 0;
-    gchar **lines;
-
-    char *enabled_cfg = get_widgets_enabled_config();
-    if (!g_file_get_contents(enabled_cfg, &contents, &len, NULL)) {
-        g_free(enabled_cfg);
-        return TRUE;
-    }
-    g_free(enabled_cfg);
-
-    lines = g_strsplit(contents, "\n", -1);
-    g_free(contents);
-
-    for (int i = 0; lines[i] != NULL; i++) {
-        g_strstrip(lines[i]);
-        if (g_str_has_prefix(lines[i], "disabled:")) {
-            const char *disabled_name = lines[i] + 9;
-            if (g_strcmp0(disabled_name, fname) == 0) {
-                g_strfreev(lines);
-                return FALSE;
+    gboolean enabled = TRUE;
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        gsize num_disabled = 0;
+        char **disabled = g_key_file_get_string_list(kf, "Widgets", "Disabled", &num_disabled, NULL);
+        if (disabled) {
+            for (gsize i = 0; i < num_disabled; i++) {
+                if (g_strcmp0(disabled[i], fname) == 0) {
+                    enabled = FALSE;
+                    break;
+                }
             }
+            g_strfreev(disabled);
         }
     }
-
-    g_strfreev(lines);
-    return TRUE;
+    g_key_file_free(kf);
+    g_free(main_config);
+    return enabled;
 }
 
 static void set_widget_enabled(const char *fname, gboolean enabled) {
-    char *contents = NULL;
-    gsize len = 0;
-    GString *new_contents;
-    gboolean found = FALSE;
-
     ensure_config_dir();
-    char *enabled_cfg = get_widgets_enabled_config();
-    g_file_get_contents(enabled_cfg, &contents, &len, NULL);
-    new_contents = g_string_new("");
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
+    g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL);
 
-    if (contents) {
-        gchar **lines = g_strsplit(contents, "\n", -1);
-        g_free(contents);
-
-        for (int i = 0; lines[i] != NULL; i++) {
-            g_strstrip(lines[i]);
-            if (strlen(lines[i]) == 0) continue;
-
-            if (g_str_has_prefix(lines[i], "disabled:")) {
-                const char *disabled_name = lines[i] + 9;
-                if (g_strcmp0(disabled_name, fname) == 0) {
-                    found = TRUE;
-                    if (!enabled) {
-                        g_string_append_printf(new_contents, "disabled:%s\n", fname);
-                    }
-                    continue;
-                }
+    gsize num_disabled = 0;
+    char **disabled = g_key_file_get_string_list(kf, "Widgets", "Disabled", &num_disabled, NULL);
+    
+    gboolean currently_disabled = FALSE;
+    if (disabled) {
+        for (gsize i = 0; i < num_disabled; i++) {
+            if (g_strcmp0(disabled[i], fname) == 0) {
+                currently_disabled = TRUE;
+                break;
             }
-
-            g_string_append_printf(new_contents, "%s\n", lines[i]);
         }
-
-        g_strfreev(lines);
     }
 
-    if (!found && !enabled) {
-        g_string_append_printf(new_contents, "disabled:%s\n", fname);
+    if (enabled && currently_disabled) {
+        char **new_disabled = g_new0(char *, num_disabled);
+        int j = 0;
+        for (gsize i = 0; i < num_disabled; i++) {
+            if (g_strcmp0(disabled[i], fname) != 0) {
+                new_disabled[j++] = disabled[i];
+            }
+        }
+        if (j > 0) {
+            g_key_file_set_string_list(kf, "Widgets", "Disabled", (const gchar * const *)new_disabled, j);
+        } else {
+            g_key_file_remove_key(kf, "Widgets", "Disabled", NULL);
+        }
+        g_free(new_disabled);
+    } else if (!enabled && !currently_disabled) {
+        char **new_disabled = g_new0(char *, num_disabled + 2);
+        for (gsize i = 0; i < num_disabled; i++) new_disabled[i] = disabled[i];
+        new_disabled[num_disabled] = (char *)fname;
+        g_key_file_set_string_list(kf, "Widgets", "Disabled", (const gchar * const *)new_disabled, num_disabled + 1);
+        g_free(new_disabled);
     }
 
-    g_file_set_contents(enabled_cfg, new_contents->str, -1, NULL);
-    g_free(enabled_cfg);
-    g_string_free(new_contents, TRUE);
+    if (disabled) g_strfreev(disabled);
+
+    g_key_file_save_to_file(kf, main_config, NULL);
+    g_key_file_free(kf);
+    g_free(main_config);
 }
 
 void load_all_widgets(GtkWidget *layout) {

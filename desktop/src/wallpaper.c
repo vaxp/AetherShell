@@ -6,6 +6,7 @@
 #include "wallpaper.h"
 #include "desktop_config.h"
 #include "video_wallpaper.h"
+#include "widgets_manager.h"
 #include <glib/gstdio.h>
 #include <string.h>
 #include <gtk-layer-shell.h>
@@ -44,11 +45,13 @@ static void on_wallpaper_file_changed(GFileMonitor *monitor, GFile *file, GFile 
     (void)user_data;
     if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT || event_type == G_FILE_MONITOR_EVENT_CREATED) {
         load_saved_wallpaper();
+        load_widget_theme_config();
+        reload_widgets();
     }
 }
 
 void init_wallpaper_monitor(void) {
-    char *path = get_vaxp_config_path("wallpaper");
+    char *path = get_vaxp_main_config_path();
     GFile *file = g_file_new_for_path(path);
     g_free(path);
     if (!wallpaper_monitor) {
@@ -124,14 +127,17 @@ static void load_wallpaper(const char *path) {
     wallpaper_pixbuf = pb;
 
     if (prev_wallpaper_pixbuf) {
-        char *anim_str = NULL;
         current_anim_type = 0;
-        char *anim_config = get_vaxp_config_path("wallpaper-anim");
-        if (g_file_get_contents(anim_config, &anim_str, NULL, NULL)) {
-            current_anim_type = atoi(anim_str);
-            g_free(anim_str);
+        char *main_config = get_vaxp_main_config_path();
+        GKeyFile *kf = g_key_file_new();
+        if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+            GError *err = NULL;
+            int a = g_key_file_get_integer(kf, "Desktop", "WallpaperAnim", &err);
+            if (!err) current_anim_type = a;
+            else g_error_free(err);
         }
-        g_free(anim_config);
+        g_key_file_free(kf);
+        g_free(main_config);
 
         wallpaper_transition_alpha = 0.0;
         transition_start_time = g_get_monotonic_time();
@@ -152,15 +158,17 @@ static void load_wallpaper(const char *path) {
 
 void load_saved_wallpaper(void) {
     char *path = NULL;
-    gsize len = 0;
     gboolean valid;
-    char *wallpaper_config = get_vaxp_config_path("wallpaper");
+    char *main_config = get_vaxp_main_config_path();
+    GKeyFile *kf = g_key_file_new();
 
-    if (!g_file_get_contents(wallpaper_config, &path, &len, NULL)) {
-        g_free(wallpaper_config);
-        return;
+    if (g_key_file_load_from_file(kf, main_config, G_KEY_FILE_NONE, NULL)) {
+        path = g_key_file_get_string(kf, "Desktop", "Wallpaper", NULL);
     }
-    g_free(wallpaper_config);
+    g_key_file_free(kf);
+    g_free(main_config);
+
+    if (!path) return;
 
     g_strstrip(path);
 

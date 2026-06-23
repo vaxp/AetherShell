@@ -99,29 +99,29 @@ dependencies = [
 ]
 
 sources = [
-	'background-image.c',
-	'cairo.c',
-	'comm.c',
-	'log.c',
-	'loop.c',
-	'main.c',
-	'password.c',
-	'password-buffer.c',
-	'pool-buffer.c',
-	'render.c',
-	'seat.c',
-	'unicode.c',
-	'power_actions.c',
+	'src/background-image.c',
+	'src/cairo.c',
+	'src/comm.c',
+	'src/log.c',
+	'src/loop.c',
+	'src/main.c',
+	'src/password.c',
+	'src/password-buffer.c',
+	'src/pool-buffer.c',
+	'src/render.c',
+	'src/seat.c',
+	'src/unicode.c',
+	'src/power_actions.c',
 ]
 
 if libpam.found()
-	sources += ['pam.c']
+	sources += ['src/pam.c']
 	dependencies += [libpam]
 else
 	warning('The aetherlock binary often needs to be setuid when compiled without libpam')
 	warning('You must do this manually post-install: chmod a+s /path/to/aetherlock')
 	warning('See the "Without PAM" section of the README for details.')
-	sources += ['shadow.c']
+	sources += ['src/shadow.c']
 	dependencies += [crypt]
 endif
 

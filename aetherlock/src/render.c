@@ -212,6 +212,25 @@ static void draw_prev_icon(cairo_t *cr, double x, double y) {
 	cairo_fill(cr);
 }
 
+static void draw_progress_ring(cairo_t *cr, double cx, double cy, double r, double percentage, double r_col, double g_col, double b_col) {
+    cairo_set_line_width(cr, 5.0);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+
+    // Background ring
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.05);
+    cairo_arc(cr, cx, cy, r, 0, 2.0 * M_PI);
+    cairo_stroke(cr);
+
+    // Foreground ring
+    if (percentage > 0.0) {
+		percentage = MIN(percentage, 100.0);
+        cairo_set_source_rgba(cr, r_col, g_col, b_col, 1.0);
+        double end_angle = -M_PI / 2.0 + (percentage / 100.0) * 2.0 * M_PI;
+        cairo_arc(cr, cx, cy, r, -M_PI / 2.0, end_angle);
+        cairo_stroke(cr);
+    }
+}
+
 /* ── New Layout Helpers ─────────────────────────────────────────────────── */
 
 static void draw_card_bg(cairo_t *cr, double x, double y, double w, double h) {
@@ -339,6 +358,7 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_show_text(cr, "caelestiafetch.sh");
 	
 	// Arch logo placeholder (triangle)
+	cairo_new_path(cr);
 	cairo_move_to(cr, cx1 + 60, cy + 70);
 	cairo_line_to(cr, cx1 + 90, cy + 130);
 	cairo_line_to(cr, cx1 + 30, cy + 130);
@@ -597,34 +617,34 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	
 	// Stats Grid
 	double stat_size = (COL_W - 16.0) / 2.0;
-	double percentages[] = {0.28, 0.16, 0.12, 0.24};
-	for (int i=0; i<4; i++) {
+	
+	const char *stat_names[] = {"CPU", "RAM", "Disk", "Temp"};
+	double stat_vals[] = {state->sysstats.cpu_usage, state->sysstats.ram_usage, state->sysstats.disk_usage, state->sysstats.temperature};
+	double stat_max[] = {100.0, 100.0, 100.0, 100.0}; // percentage except temp which we cap at 100C
+	const char *stat_fmt[] = {"%.0f%%", "%.0f%%", "%.0f%%", "%.0f°C"};
+	// Colors
+	double r_c[] = {126.0/255.0, 168.0/255.0, 95.0/255.0, 255.0/255.0};
+	double g_c[] = {224.0/255.0, 201.0/255.0, 217.0/255.0, 100.0/255.0};
+	double b_c[] = {201.0/255.0, 58.0/255.0, 168.0/255.0, 100.0/255.0};
+
+	for(int i=0; i<4; i++) {
 		double sx = cx3 + (i%2) * (stat_size + 16.0);
 		double sy = cy + (i/2) * (stat_size + 16.0);
 		draw_card_bg(cr, sx, sy, stat_size, stat_size);
 		
-		// ring bg
-		cairo_arc(cr, sx + stat_size/2, sy + stat_size/2, stat_size/2 - 25, 0, 2*M_PI);
-		cairo_set_source_rgba(cr, 1, 1, 1, 0.07);
-		cairo_set_line_width(cr, 5.0);
-		cairo_stroke(cr);
-
-		// ring fg
-		double pct = percentages[i];
-		cairo_arc(cr, sx + stat_size/2, sy + stat_size/2, stat_size/2 - 25, -M_PI/2, -M_PI/2 + 2*M_PI*pct);
-		if (i%2 == 0)
-			cairo_set_source_rgba(cr, 126.0/255.0, 224.0/255.0, 201.0/255.0, 1.0);
-		else
-			cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
-		cairo_set_line_width(cr, 5.0);
-		cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-		cairo_stroke(cr);
+		// Progress Ring (centered differently for the right side)
+		draw_progress_ring(cr, sx + stat_size/2, sy + stat_size/2, stat_size/2 - 25, (stat_vals[i] / stat_max[i]) * 100.0, r_c[i], g_c[i], b_c[i]);
 		
-		// icon center placeholder
+		// We'll put text in the center
+		char buf[32];
+		snprintf(buf, sizeof(buf), stat_fmt[i], stat_vals[i]);
+		cairo_set_font_size(cr, 24.0);
+		cairo_set_source_rgba(cr, 230.0/255.0, 245.0/255.0, 240.0/255.0, 1.0);
+		draw_text_centered(cr, buf, sx + stat_size/2, sy + stat_size/2 - 10);
+		
+		cairo_set_font_size(cr, 12.0);
 		cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
-		cairo_set_line_width(cr, 1.5);
-		cairo_arc(cr, sx + stat_size/2, sy + stat_size/2, 6, 0, 2*M_PI);
-		cairo_stroke(cr);
+		draw_text_centered(cr, stat_names[i], sx + stat_size/2, sy + stat_size/2 + 15);
 	}
 	
 	cy += stat_size * 2 + 16.0 + 16.0;

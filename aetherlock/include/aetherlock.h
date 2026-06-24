@@ -3,10 +3,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <wayland-client.h>
+#include <xkbcommon/xkbcommon.h>
 #include "background-image.h"
 #include "cairo.h"
+#include "loop.h"
 #include "pool-buffer.h"
 #include "seat.h"
+#include "sysstats.h"
 
 // Indicator state: status of authentication attempt
 enum auth_state {
@@ -120,6 +123,9 @@ struct aetherlock_state {
 	char *mpris_artist;
 	char *mpris_art_url;
 	cairo_surface_t *mpris_art_surface;
+	
+	// System stats
+	struct sysstats_data sysstats;
 };
 
 struct aetherlock_surface {

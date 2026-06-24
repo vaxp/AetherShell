@@ -114,6 +114,7 @@ sources = [
 	'src/power_actions.c',
 	'src/sysinfo.c',
 	'src/mpris_control.c',
+	'src/sysstats.c',
 ]
 
 if libpam.found()

@@ -29,6 +29,7 @@
 #include "seat.h"
 #include "aetherlock.h"
 #include "ext-session-lock-v1-client-protocol.h"
+#include "sysstats.h"
 
 /* ── Gaussian blur (3-pass box blur approximation) ───────────────────── */
 static void apply_blur(cairo_surface_t *surface, int radius) {
@@ -214,6 +215,13 @@ static void glib_pump(void *data) {
     struct aetherlock_state *state = data;
     g_main_context_iteration(NULL, FALSE);
     loop_add_timer(state->eventloop, 50, glib_pump, state);
+}
+
+static void sysstats_timer_cb(void *data) {
+    struct aetherlock_state *state = data;
+    sysstats_update(&state->sysstats);
+    damage_state(state);
+    loop_add_timer(state->eventloop, 1500, sysstats_timer_cb, state);
 }
 
 static void destroy_surface(struct aetherlock_surface *surface) {
@@ -1521,6 +1529,11 @@ int main(int argc, char **argv) {
 	// Setup MPRIS
 	mpris_control_init(on_mpris_state_changed, &state);
 	loop_add_timer(state.eventloop, 50, glib_pump, &state);
+
+	// Setup Sysstats
+	sysstats_init();
+	sysstats_update(&state.sysstats);
+	loop_add_timer(state.eventloop, 1500, sysstats_timer_cb, &state);
 
 	state.run_display = true;
 	while (state.run_display) {

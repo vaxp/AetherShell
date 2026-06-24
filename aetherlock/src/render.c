@@ -350,7 +350,7 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_set_font_size(cr, 14.0);
 	cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
 	cairo_move_to(cr, cx1 + 56, cy + 36);
-	cairo_show_text(cr, "caelestiafetch.sh");
+	cairo_show_text(cr, "VAXP.org");
 	
 	// Arch logo placeholder (triangle)
 	cairo_new_path(cr);
@@ -386,7 +386,7 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_move_to(cr, cx1 + 120, cy + 75);
 	cairo_show_text(cr, spec_buf);
 	
-	snprintf(spec_buf, sizeof(spec_buf), "WM  : %s", sinfo.wm_name);
+	snprintf(spec_buf, sizeof(spec_buf), "DE  : %s", sinfo.de_name);
 	cairo_move_to(cr, cx1 + 120, cy + 95);
 	cairo_show_text(cr, spec_buf);
 	

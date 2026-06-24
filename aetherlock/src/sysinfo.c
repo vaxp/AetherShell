@@ -9,7 +9,7 @@
 void fetch_sysinfo(struct sysinfo_data *info) {
     // Default values
     strcpy(info->os_name, "Unknown OS");
-    strcpy(info->wm_name, "Unknown WM");
+    strcpy(info->de_name, "Unknown DE");
     strcpy(info->user_name, "user");
     strcpy(info->uptime, "0 minutes");
 
@@ -31,14 +31,21 @@ void fetch_sysinfo(struct sysinfo_data *info) {
         fclose(fp);
     }
 
-    // Get WM Name
-    const char *xdg_desktop = getenv("XDG_CURRENT_DESKTOP");
-    if (xdg_desktop && strlen(xdg_desktop) > 0) {
-        snprintf(info->wm_name, sizeof(info->wm_name), "%s", xdg_desktop);
+    // Get DE Name (Session Name)
+    const char *desktop_session = getenv("DESKTOP_SESSION");
+    const char *xdg_session = getenv("XDG_SESSION_DESKTOP");
+    const char *xdg_current = getenv("XDG_CURRENT_DESKTOP");
+    
+    if (desktop_session && strlen(desktop_session) > 0) {
+        snprintf(info->de_name, sizeof(info->de_name), "%s", desktop_session);
+    } else if (xdg_session && strlen(xdg_session) > 0) {
+        snprintf(info->de_name, sizeof(info->de_name), "%s", xdg_session);
+    } else if (xdg_current && strlen(xdg_current) > 0) {
+        snprintf(info->de_name, sizeof(info->de_name), "%s", xdg_current);
     } else {
         const char *wayland_display = getenv("WAYLAND_DISPLAY");
         if (wayland_display) {
-            snprintf(info->wm_name, sizeof(info->wm_name), "Wayland (%s)", wayland_display);
+            snprintf(info->de_name, sizeof(info->de_name), "Wayland (%s)", wayland_display);
         }
     }
 

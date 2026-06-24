@@ -3,7 +3,7 @@
 
 struct sysinfo_data {
     char os_name[64];
-    char wm_name[64];
+    char de_name[64];
     char user_name[64];
     char uptime[64];
 };

@@ -21,6 +21,7 @@
 #include <wordexp.h>
 #include <glib.h>
 #include "background-image.h"
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include "cairo.h"
 #include "comm.h"
 #include "log.h"
@@ -1258,6 +1259,86 @@ static void clock_tick(void *data) {
 	s->clock_timer = loop_add_timer(s->eventloop, 1000, clock_tick, s);
 }
 
+static gchar *resolve_icon_path(const gchar *icon_name) {
+	if (!icon_name || strlen(icon_name) == 0) return NULL;
+	
+	// If it's already an absolute path, just return it
+	if (icon_name[0] == '/') {
+		if (g_file_test(icon_name, G_FILE_TEST_EXISTS)) return g_strdup(icon_name);
+		return NULL;
+	}
+	
+	// Check in standard icon directories
+	const char *search_dirs[] = {
+		"/usr/share/pixmaps",
+		"/usr/share/icons/hicolor/48x48/apps",
+		"/usr/share/icons/hicolor/scalable/apps",
+		"/usr/share/icons/Adwaita/48x48/apps",
+		"/usr/share/icons/Adwaita/scalable/apps",
+		NULL
+	};
+	
+	const char *extensions[] = { ".png", ".svg", ".xpm", "", NULL };
+	
+	for (int i = 0; search_dirs[i] != NULL; i++) {
+		for (int j = 0; extensions[j] != NULL; j++) {
+			gchar *filename = g_strconcat(icon_name, extensions[j], NULL);
+			gchar *path = g_build_filename(search_dirs[i], filename, NULL);
+			g_free(filename);
+			
+			if (g_file_test(path, G_FILE_TEST_EXISTS)) {
+				return path;
+			}
+			g_free(path);
+		}
+	}
+	
+	return NULL;
+}
+
+static void on_notifications_updated(GList *history, gpointer user_data) {
+	struct aetherlock_state *state = user_data;
+	if (state->latest_notif_app) g_free(state->latest_notif_app);
+	if (state->latest_notif_summary) g_free(state->latest_notif_summary);
+	if (state->latest_notif_body) g_free(state->latest_notif_body);
+	if (state->latest_notif_icon) {
+		cairo_surface_destroy(state->latest_notif_icon);
+	}
+	state->latest_notif_app = NULL;
+	state->latest_notif_summary = NULL;
+	state->latest_notif_body = NULL;
+	state->latest_notif_icon = NULL;
+
+	if (history != NULL) {
+		NotificationData *n = history->data;
+		state->latest_notif_app = g_strdup(n->app_name);
+		state->latest_notif_summary = g_strdup(n->summary);
+		state->latest_notif_body = g_strdup(n->body);
+		
+		if (n->icon_path) {
+			gchar *resolved_path = resolve_icon_path(n->icon_path);
+			if (resolved_path) {
+				GError *err = NULL;
+				GdkPixbuf *pix = gdk_pixbuf_new_from_file_at_scale(resolved_path, 48, 48, TRUE, &err);
+				if (pix) {
+					state->latest_notif_icon = gdk_cairo_image_surface_create_from_pixbuf(pix);
+					g_object_unref(pix);
+				} else {
+					g_clear_error(&err);
+				}
+				g_free(resolved_path);
+			}
+		}
+	}
+	damage_state(state);
+}
+
+static void on_notifications_dnd(gboolean enabled, gpointer user_data) {
+	struct aetherlock_state *state = user_data;
+	state->notifications_dnd = enabled;
+	damage_state(state);
+}
+
 int main(int argc, char **argv) {
 	log_init(argc, argv);
 	initialize_pw_backend(argc, argv);
@@ -1539,6 +1620,9 @@ int main(int argc, char **argv) {
 
 	// Setup Weather
 	weather_init(&state);
+
+	// Setup Notifications
+	venom_notifications_init(on_notifications_updated, on_notifications_dnd, &state);
 
 	state.run_display = true;
 	while (state.run_display) {

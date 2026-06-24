@@ -11,6 +11,7 @@
 #include "seat.h"
 #include "sysstats.h"
 #include "weather.h"
+#include "venom_notifications.h"
 
 // Indicator state: status of authentication attempt
 enum auth_state {
@@ -131,6 +132,13 @@ struct aetherlock_state {
 	// Weather State
 	struct weather_data weather;
 	bool weather_fetched;
+
+	// Notifications
+	char *latest_notif_app;
+	char *latest_notif_summary;
+	char *latest_notif_body;
+	cairo_surface_t *latest_notif_icon;
+	gboolean notifications_dnd;
 };
 
 struct aetherlock_surface {

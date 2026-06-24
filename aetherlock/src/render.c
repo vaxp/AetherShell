@@ -648,10 +648,31 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_set_font_size(cr, 13.0);
 	cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
 	cairo_move_to(cr, cx3 + 20, cy + 30);
-	cairo_show_text(cr, "Notifications");
+	cairo_show_text(cr, (state->latest_notif_app && !state->notifications_dnd) ? state->latest_notif_app : "Notifications");
 	
-	cairo_set_font_size(cr, 14.0);
-	draw_text_centered(cr, "No Notifications", cx3 + COL_W/2, cy + notif_h - 40);
+	if (state->notifications_dnd) {
+		cairo_set_font_size(cr, 14.0);
+		draw_text_centered(cr, "Do Not Disturb is On", cx3 + COL_W/2, cy + notif_h - 40);
+	} else if (state->latest_notif_summary) {
+		double text_cx = cx3 + COL_W/2;
+		double max_text_w = COL_W - 40.0;
+		
+		if (state->latest_notif_icon) {
+			cairo_set_source_surface(cr, state->latest_notif_icon, cx3 + 20, cy + 50);
+			cairo_paint(cr);
+			max_text_w = COL_W - 88.0;
+			text_cx = cx3 + 78 + max_text_w/2;
+		}
+
+		cairo_set_source_rgba(cr, 230.0/255.0, 245.0/255.0, 240.0/255.0, 1.0);
+		draw_text_pango(cr, state->latest_notif_summary, state->args.font, 16.0, true, text_cx, cy + 60, max_text_w);
+		
+		cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
+		draw_text_pango(cr, state->latest_notif_body ? state->latest_notif_body : "", state->args.font, 13.0, false, text_cx, cy + 85, max_text_w);
+	} else {
+		cairo_set_font_size(cr, 14.0);
+		draw_text_centered(cr, "No Notifications", cx3 + COL_W/2, cy + notif_h - 40);
+	}
 
 	/* ── Send to Wayland ─────────────────────────────────────────── */
 	wl_subsurface_set_position(surface->subsurface, subsurf_xpos, subsurf_ypos);

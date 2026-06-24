@@ -126,6 +126,42 @@ static double draw_text_centered(cairo_t *cr, const char *text,
 	return ext.width;
 }
 
+static double draw_text_centered_truncated(cairo_t *cr, const char *text,
+		double cx, double y, double max_width) {
+	if (!text || !*text) return 0.0;
+	cairo_text_extents_t ext;
+	cairo_text_extents(cr, text, &ext);
+	if (ext.width <= max_width) {
+		cairo_move_to(cr, cx - ext.width / 2.0 - ext.x_bearing, y);
+		cairo_show_text(cr, text);
+		return ext.width;
+	}
+
+	char buf[512];
+	strncpy(buf, text, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	
+	if (!g_utf8_validate(buf, -1, NULL)) {
+		return 0.0;
+	}
+
+	char *end = buf + strlen(buf);
+	while (end > buf) {
+		end = g_utf8_find_prev_char(buf, end);
+		if (!end) break;
+		
+		char temp[512];
+		snprintf(temp, sizeof(temp), "%.*s...", (int)(end - buf), buf);
+		cairo_text_extents(cr, temp, &ext);
+		if (ext.width <= max_width) {
+			cairo_move_to(cr, cx - ext.width / 2.0 - ext.x_bearing, y);
+			cairo_show_text(cr, temp);
+			return ext.width;
+		}
+	}
+	return 0.0;
+}
+
 static void draw_person_icon(cairo_t *cr, double cx, double cy, double r) {
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.70);
 	cairo_arc(cr, cx, cy - r * 0.30, r * 0.32, 0, 2.0 * M_PI);
@@ -370,13 +406,40 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_move_to(cr, cx1 + 20, cy + 30);
 	cairo_show_text(cr, "Now playing");
 	
+	double text_cx = cx1 + COL_W/2;
+	double max_text_w = 360.0;
+
+	if (state->mpris_art_surface) {
+		double iw = cairo_image_surface_get_width(state->mpris_art_surface);
+		double ih = cairo_image_surface_get_height(state->mpris_art_surface);
+		double size = 64.0;
+		double scale_x = size / iw;
+		double scale_y = size / ih;
+		double scale = MAX(scale_x, scale_y);
+
+		cairo_save(cr);
+		rounded_rect(cr, cx1 + 20, cy + 45, size, size, 8.0);
+		cairo_clip(cr);
+		// Center the image if aspect ratio isn't exactly 1:1
+		double tx = cx1 + 20 + (size - iw * scale) / 2.0;
+		double ty = cy + 45 + (size - ih * scale) / 2.0;
+		cairo_translate(cr, tx, ty);
+		cairo_scale(cr, scale, scale);
+		cairo_set_source_surface(cr, state->mpris_art_surface, 0, 0);
+		cairo_paint(cr);
+		cairo_restore(cr);
+
+		max_text_w = COL_W - 40 - size - 16;
+		text_cx = cx1 + 20 + size + 16 + max_text_w / 2.0;
+	}
+
 	cairo_set_font_size(cr, 19.0);
 	cairo_set_source_rgba(cr, 230.0/255.0, 245.0/255.0, 240.0/255.0, 1.0);
-	draw_text_centered(cr, state->mpris_title ? state->mpris_title : "No Media", cx1 + COL_W/2, cy + 60);
+	draw_text_centered_truncated(cr, state->mpris_title ? state->mpris_title : "No Media", text_cx, cy + 60, max_text_w);
 	
 	cairo_set_font_size(cr, 13.0);
 	cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
-	draw_text_centered(cr, state->mpris_artist ? state->mpris_artist : "", cx1 + COL_W/2, cy + 85);
+	draw_text_centered_truncated(cr, state->mpris_artist ? state->mpris_artist : "", text_cx, cy + 85, max_text_w);
 
 	// Now Playing Card Controls
 	cairo_set_source_rgba(cr, 1, 1, 1, 0.07);

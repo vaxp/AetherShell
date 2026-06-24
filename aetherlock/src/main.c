@@ -186,6 +186,27 @@ static void on_mpris_state_changed(gboolean is_playing, const char *title, const
     state->mpris_title = title ? strdup(title) : NULL;
     free(state->mpris_artist);
     state->mpris_artist = artist ? strdup(artist) : NULL;
+
+    bool art_changed = false;
+    if (g_strcmp0(state->mpris_art_url, art_url) != 0) {
+        free(state->mpris_art_url);
+        state->mpris_art_url = art_url ? strdup(art_url) : NULL;
+        art_changed = true;
+    }
+
+    if (art_changed) {
+        if (state->mpris_art_surface) {
+            cairo_surface_destroy(state->mpris_art_surface);
+            state->mpris_art_surface = NULL;
+        }
+        if (art_url && strncmp(art_url, "file://", 7) == 0) {
+            char *path = g_uri_unescape_string(art_url + 7, NULL);
+            if (path) {
+                state->mpris_art_surface = load_background_image(path);
+                g_free(path);
+            }
+        }
+    }
     damage_state(state);
 }
 

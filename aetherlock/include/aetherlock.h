@@ -118,6 +118,8 @@ struct aetherlock_state {
 	bool mpris_playing;
 	char *mpris_title;
 	char *mpris_artist;
+	char *mpris_art_url;
+	cairo_surface_t *mpris_art_surface;
 };
 
 struct aetherlock_surface {

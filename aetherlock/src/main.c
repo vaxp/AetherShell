@@ -1262,38 +1262,59 @@ static void clock_tick(void *data) {
 static gchar *resolve_icon_path(const gchar *icon_name) {
 	if (!icon_name || strlen(icon_name) == 0) return NULL;
 	
-	// If it's already an absolute path, just return it
 	if (icon_name[0] == '/') {
 		if (g_file_test(icon_name, G_FILE_TEST_EXISTS)) return g_strdup(icon_name);
 		return NULL;
 	}
 	
-	// Check in standard icon directories
-	const char *search_dirs[] = {
-		"/usr/share/pixmaps",
-		"/usr/share/icons/hicolor/48x48/apps",
-		"/usr/share/icons/hicolor/scalable/apps",
-		"/usr/share/icons/Adwaita/48x48/apps",
-		"/usr/share/icons/Adwaita/scalable/apps",
-		NULL
-	};
+	gchar *theme_name = NULL;
+	gchar *settings_path = g_build_filename(g_get_user_config_dir(), "gtk-3.0", "settings.ini", NULL);
+	GKeyFile *kf = g_key_file_new();
+	if (g_key_file_load_from_file(kf, settings_path, G_KEY_FILE_NONE, NULL)) {
+		theme_name = g_key_file_get_string(kf, "Settings", "gtk-icon-theme-name", NULL);
+	}
+	g_key_file_free(kf);
+	g_free(settings_path);
 	
-	const char *extensions[] = { ".png", ".svg", ".xpm", "", NULL };
+	if (!theme_name) theme_name = g_strdup("hicolor");
 	
-	for (int i = 0; search_dirs[i] != NULL; i++) {
+	const char *sizes[] = { "scalable", "48x48", "64x64", "128x128", "256x256", "32x32" };
+	const char *extensions[] = { ".svg", ".png", ".xpm", "", NULL };
+	const char *themes[] = { theme_name, "hicolor", "Adwaita", NULL };
+	const char *prefixes[] = { "/usr/share/icons", NULL };
+	
+	GPtrArray *search_dirs = g_ptr_array_new_with_free_func(g_free);
+	for (int t = 0; themes[t] != NULL; t++) {
+		for (int p = 0; prefixes[p] != NULL; p++) {
+			for (int s = 0; s < 6; s++) {
+				g_ptr_array_add(search_dirs, g_build_filename(prefixes[p], themes[t], "apps", sizes[s], NULL));
+				g_ptr_array_add(search_dirs, g_build_filename(prefixes[p], themes[t], sizes[s], "apps", NULL));
+			}
+		}
+	}
+	g_ptr_array_add(search_dirs, g_strdup("/usr/share/pixmaps"));
+	
+	gchar *found_path = NULL;
+	for (guint i = 0; i < search_dirs->len && !found_path; i++) {
+		const char *dir = g_ptr_array_index(search_dirs, i);
 		for (int j = 0; extensions[j] != NULL; j++) {
 			gchar *filename = g_strconcat(icon_name, extensions[j], NULL);
-			gchar *path = g_build_filename(search_dirs[i], filename, NULL);
+			gchar *path = g_build_filename(dir, filename, NULL);
 			g_free(filename);
 			
 			if (g_file_test(path, G_FILE_TEST_EXISTS)) {
-				return path;
+				found_path = g_strdup(path);
+				g_free(path);
+				break;
 			}
 			g_free(path);
 		}
 	}
 	
-	return NULL;
+	g_ptr_array_free(search_dirs, TRUE);
+	g_free(theme_name);
+	
+	return found_path;
 }
 
 static void on_notifications_updated(GList *history, gpointer user_data) {

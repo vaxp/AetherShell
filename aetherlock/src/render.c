@@ -648,7 +648,17 @@ static bool render_frame(struct aetherlock_surface *surface) {
 	cairo_set_font_size(cr, 13.0);
 	cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
 	cairo_move_to(cr, cx3 + 20, cy + 30);
-	cairo_show_text(cr, (state->latest_notif_app && !state->notifications_dnd) ? state->latest_notif_app : "Notifications");
+	const char *app_title = (state->latest_notif_app && !state->notifications_dnd) ? state->latest_notif_app : "Notifications";
+	PangoLayout *layout_app = pango_cairo_create_layout(cr);
+	pango_layout_set_text(layout_app, app_title, -1);
+	PangoFontDescription *desc_app = pango_font_description_from_string(state->args.font);
+	pango_font_description_set_absolute_size(desc_app, 13.0 * PANGO_SCALE);
+	pango_layout_set_font_description(layout_app, desc_app);
+	pango_font_description_free(desc_app);
+	cairo_move_to(cr, cx3 + 20, cy + 17);
+	pango_cairo_update_layout(cr, layout_app);
+	pango_cairo_show_layout(cr, layout_app);
+	g_object_unref(layout_app);
 	
 	if (state->notifications_dnd) {
 		cairo_set_font_size(cr, 14.0);

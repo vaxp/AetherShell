@@ -448,7 +448,42 @@ static bool render_frame(struct aetherlock_surface *surface) {
 
 	// Text rendering with Pango for font fallback
 	cairo_set_source_rgba(cr, 230.0/255.0, 245.0/255.0, 240.0/255.0, 1.0);
-	draw_text_pango(cr, state->mpris_title ? state->mpris_title : "No Media", state->args.font, 18.0, true, text_cx, cy + 60, max_text_w);
+		const char *title = state->mpris_title ? state->mpris_title : "No Media";
+		cairo_set_source_rgba(cr, 230.0/255.0, 245.0/255.0, 240.0/255.0, 1.0);
+		
+		PangoLayout *layout_title = pango_cairo_create_layout(cr);
+		pango_layout_set_text(layout_title, title, -1);
+		PangoFontDescription *desc_title = pango_font_description_from_string(state->args.font);
+		pango_font_description_set_absolute_size(desc_title, 18.0 * PANGO_SCALE);
+		pango_font_description_set_weight(desc_title, PANGO_WEIGHT_BOLD);
+		pango_layout_set_font_description(layout_title, desc_title);
+		pango_font_description_free(desc_title);
+		
+		int tw, th;
+		pango_layout_get_pixel_size(layout_title, &tw, &th);
+		
+		if (tw > max_text_w) {
+			state->mpris_title_scroll = true;
+			cairo_save(cr);
+			cairo_rectangle(cr, text_cx - max_text_w/2, cy + 40, max_text_w, 35);
+			cairo_clip(cr);
+			
+			if (state->marquee_offset > tw + 50) {
+				state->marquee_offset = -max_text_w;
+			}
+			
+			cairo_move_to(cr, (text_cx - max_text_w/2) - state->marquee_offset, cy + 60 - th/1.5);
+			pango_cairo_update_layout(cr, layout_title);
+			pango_cairo_show_layout(cr, layout_title);
+			cairo_restore(cr);
+		} else {
+			state->mpris_title_scroll = false;
+			state->marquee_offset = 0;
+			cairo_move_to(cr, text_cx - tw/2.0, cy + 60 - th/1.5);
+			pango_cairo_update_layout(cr, layout_title);
+			pango_cairo_show_layout(cr, layout_title);
+		}
+		g_object_unref(layout_title);
 	
 	cairo_set_source_rgba(cr, 159.0/255.0, 179.0/255.0, 176.0/255.0, 1.0);
 	draw_text_pango(cr, state->mpris_artist ? state->mpris_artist : "", state->args.font, 13.0, false, text_cx, cy + 85, max_text_w);

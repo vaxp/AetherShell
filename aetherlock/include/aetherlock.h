@@ -125,6 +125,8 @@ struct aetherlock_state {
 	char *mpris_artist;
 	char *mpris_art_url;
 	cairo_surface_t *mpris_art_surface;
+	bool mpris_title_scroll;
+	double marquee_offset;
 	
 	// System stats
 	struct sysstats_data sysstats;

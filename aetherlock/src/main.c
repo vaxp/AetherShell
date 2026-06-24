@@ -1259,6 +1259,17 @@ static void clock_tick(void *data) {
 	s->clock_timer = loop_add_timer(s->eventloop, 1000, clock_tick, s);
 }
 
+static void marquee_tick(void *data) {
+	struct aetherlock_state *s = data;
+	if (s->mpris_title_scroll && s->mpris_playing && s->run_display) {
+		s->marquee_offset += 2.0;
+		damage_state(s);
+	} else if (!s->mpris_playing) {
+		s->marquee_offset = 0;
+	}
+	loop_add_timer(s->eventloop, 50, marquee_tick, s);
+}
+
 static gchar *resolve_icon_path(const gchar *icon_name) {
 	if (!icon_name || strlen(icon_name) == 0) return NULL;
 	
@@ -1622,6 +1633,7 @@ int main(int argc, char **argv) {
 	// Start clock timer — fires every second to redraw date/time
 	if (state.args.show_clock) {
 		state.clock_timer = loop_add_timer(state.eventloop, 1000, clock_tick, &state);
+	loop_add_timer(state.eventloop, 50, marquee_tick, &state);
 	}
 
 	struct sigaction sa;

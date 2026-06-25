@@ -1,5 +1,4 @@
 ## Auth
-
 `auth` is a focused Polkit authentication agent.
 
 What it does:

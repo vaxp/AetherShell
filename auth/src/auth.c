@@ -8,6 +8,7 @@
 #include <glib-object.h>
 #include <polkitagent/polkitagent.h>
 
+#include "config.h"
 #include "auth_ui.h"
 
 // ------------------------------------------------------------------------------------------------
@@ -109,7 +110,19 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
         return;
     }
 
+    AuthConfig config;
+    config_load(&config);
+    auth_ui_set_theme(config.theme);
+
     PolkitIdentity *identity = POLKIT_IDENTITY(identities->data);
+    
+    const char *username = "User";
+    if (POLKIT_IS_UNIX_USER(identity)) {
+        username = polkit_unix_user_get_name(POLKIT_UNIX_USER(identity));
+    } else {
+        username = g_get_user_name();
+    }
+
     char *password = calloc(1, 512);
     if (!password) {
         g_task_report_new_error(G_OBJECT(agent), callback, user_data, venom_agent_initiate_authentication_real,
@@ -119,7 +132,7 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
 
     int ui_result = auth_ui_get_password(
         message ? message : "Authentication Required",
-        NULL,
+        username,
         password,
         512
     );
@@ -184,8 +197,12 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
     
+    // Load config
+    AuthConfig config;
+    config_load(&config);
+
     // Initialize UI
-    if (auth_ui_init() < 0) {
+    if (auth_ui_init(config.theme) < 0) {
         fprintf(stderr, "Failed to initialize authentication UI\n");
         return 1;
     }

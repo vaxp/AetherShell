@@ -44,6 +44,7 @@ void config_load(struct aetherlock_state *state) {
     struct color_rgba def_accent = {126.0/255.0, 224.0/255.0, 201.0/255.0, 1.0};
     struct color_rgba def_accent_dim = {126.0/255.0, 224.0/255.0, 201.0/255.0, 0.15};
     struct color_rgba def_background = {17.0/255.0, 17.0/255.0, 17.0/255.0, 1.0};
+    bool def_hide_notification_content = false;
     
     if (!g_file_test(config_file, G_FILE_TEST_EXISTS)) {
         g_mkdir_with_parents(config_dir, 0755);
@@ -73,7 +74,9 @@ void config_load(struct aetherlock_state *state) {
             "TextDim=#9fb3b0ff\n"
             "Accent=#7ee0c9ff\n"
             "AccentDim=#7ee0c926\n"
-            "Background=#111111ff\n",
+            "Background=#111111ff\n\n"
+            "[Notifications]\n"
+            "HideContent=false\n",
             default_loc ? default_loc : ""
         );
         
@@ -113,6 +116,12 @@ void config_load(struct aetherlock_state *state) {
             state->vaxp_colors.outer_border_width = def_outer_border_width;
         }
         
+        if (g_key_file_has_key(kf, "Notifications", "HideContent", NULL)) {
+            state->vaxp_colors.hide_notification_content = g_key_file_get_boolean(kf, "Notifications", "HideContent", NULL);
+        } else {
+            state->vaxp_colors.hide_notification_content = def_hide_notification_content;
+        }
+        
         parse_color(c_panel_bg, &state->vaxp_colors.panel_bg, def_panel_bg);
         parse_color(c_panel_border, &state->vaxp_colors.panel_border, def_panel_border);
         parse_color(c_outer_border, &state->vaxp_colors.outer_border, def_outer_border);
@@ -142,6 +151,7 @@ void config_load(struct aetherlock_state *state) {
         state->vaxp_colors.accent = def_accent;
         state->vaxp_colors.accent_dim = def_accent_dim;
         state->vaxp_colors.background = def_background;
+        state->vaxp_colors.hide_notification_content = def_hide_notification_content;
     }
     
     g_key_file_free(kf);

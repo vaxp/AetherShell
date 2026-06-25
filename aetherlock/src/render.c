@@ -716,10 +716,15 @@ static bool render_frame(struct aetherlock_surface *surface) {
 		}
 
 		set_color(cr, state->vaxp_colors.text_bright);
-		draw_text_pango(cr, state->latest_notif_summary, state->args.font, 16.0, true, text_cx, cy + 60, max_text_w);
-		
-		set_color(cr, state->vaxp_colors.text_dim);
-		draw_text_pango(cr, state->latest_notif_body ? state->latest_notif_body : "", state->args.font, 13.0, false, text_cx, cy + 85, max_text_w);
+		if (state->vaxp_colors.hide_notification_content) {
+			draw_text_pango(cr, "****************", state->args.font, 16.0, true, text_cx, cy + 60, max_text_w);
+			set_color(cr, state->vaxp_colors.text_dim);
+			draw_text_pango(cr, "****************", state->args.font, 13.0, false, text_cx, cy + 85, max_text_w);
+		} else {
+			draw_text_pango(cr, state->latest_notif_summary, state->args.font, 16.0, true, text_cx, cy + 60, max_text_w);
+			set_color(cr, state->vaxp_colors.text_dim);
+			draw_text_pango(cr, state->latest_notif_body ? state->latest_notif_body : "", state->args.font, 13.0, false, text_cx, cy + 85, max_text_w);
+		}
 	} else {
 		cairo_set_font_size(cr, 14.0);
 		draw_text_centered(cr, "No Notifications", cx3 + COL_W/2, cy + notif_h - 40);

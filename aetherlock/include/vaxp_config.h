@@ -23,6 +23,7 @@ struct vaxp_colors {
     struct color_rgba accent;
     struct color_rgba accent_dim;
     struct color_rgba background;
+    bool hide_notification_content;
 };
 
 void config_load(struct aetherlock_state *state);

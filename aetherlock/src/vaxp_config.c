@@ -62,7 +62,6 @@ void config_load(struct aetherlock_state *state) {
         
         gchar *default_content = g_strdup_printf(
             "[Weather]\n"
-            "# Enter your city here (e.g., Karbala). Leave empty for auto-detect based on IP.\n"
             "Location=%s\n\n"
             "[Colors]\n"
             "PanelBackground=#141c1e8c\n"

@@ -393,7 +393,28 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
                       &app_name, &replaces_id, &app_icon, 
                       &summary, &body, &actions, &hints, &expire_timeout);
 
-        guint32 notification_id = create_new_notification(app_name, replaces_id, summary, body, app_icon, actions, hints, expire_timeout);
+        gchar *final_icon = g_strdup(app_icon);
+        if (!final_icon || strlen(final_icon) == 0) {
+            if (app_name && strlen(app_name) > 0) {
+                gchar *guessed_icon = g_utf8_strdown(app_name, -1);
+                for (int i = 0; guessed_icon[i] != '\0'; i++) {
+                    if (guessed_icon[i] == ' ') {
+                        guessed_icon[i] = '-';
+                    }
+                }
+                
+                GtkIconTheme *theme = gtk_icon_theme_get_default();
+                if (gtk_icon_theme_has_icon(theme, guessed_icon)) {
+                    g_free(final_icon);
+                    final_icon = guessed_icon;
+                } else {
+                    g_free(guessed_icon);
+                }
+            }
+        }
+
+        guint32 notification_id = create_new_notification(app_name, replaces_id, summary, body, final_icon, actions, hints, expire_timeout);
+        g_free(final_icon);
         
         // إخبار الكونترول سنتر بتحديث السجل
         emit_history_updated_signal(connection);

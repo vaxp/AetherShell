@@ -39,9 +39,11 @@ gboolean layout_builder_parse_config(const char       *json_path,
     /* Set defaults first */
     out->height      = DEFAULT_HEIGHT;
     out->margin_top  = DEFAULT_MARGIN_TOP;
+    out->margin_bottom = 0;
     out->margin_left = DEFAULT_MARGIN_LEFT;
     out->margin_right= DEFAULT_MARGIN_RIGHT;
     out->spacing     = DEFAULT_SPACING;
+    out->position    = PANEL_POSITION_TOP;
 
     GError  *err    = NULL;
     JsonParser *parser = json_parser_new();
@@ -65,8 +67,17 @@ gboolean layout_builder_parse_config(const char       *json_path,
         if (json_object_has_member(panel, "margin")) {
             JsonObject *m = json_object_get_object_member(panel, "margin");
             out->margin_top   = obj_get_int(m, "top",   out->margin_top);
+            out->margin_bottom= obj_get_int(m, "bottom",out->margin_bottom);
             out->margin_left  = obj_get_int(m, "left",  out->margin_left);
             out->margin_right = obj_get_int(m, "right", out->margin_right);
+        }
+
+        if (json_object_has_member(panel, "position")) {
+            const char *pos = json_object_get_string_member(panel, "position");
+            if (g_strcmp0(pos, "bottom") == 0) out->position = PANEL_POSITION_BOTTOM;
+            else if (g_strcmp0(pos, "left") == 0) out->position = PANEL_POSITION_LEFT;
+            else if (g_strcmp0(pos, "right") == 0) out->position = PANEL_POSITION_RIGHT;
+            else out->position = PANEL_POSITION_TOP;
         }
     }
 
@@ -85,12 +96,12 @@ gboolean layout_builder_parse_config(const char       *json_path,
  *   CSS class "aether-pill"   — can be styled generically
  *   CSS class <pill-id>       — can be styled specifically
  */
-static GtkWidget *build_pill(JsonObject *pill_obj)
+static GtkWidget *build_pill(JsonObject *pill_obj, GtkOrientation orientation)
 {
     if (!pill_obj) return NULL;
 
     int spacing = obj_get_int(pill_obj, "spacing", DEFAULT_PILL_SPACING);
-    GtkWidget *pill = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, spacing);
+    GtkWidget *pill = gtk_box_new(orientation, spacing);
 
     GtkStyleContext *sc = gtk_widget_get_style_context(pill);
     gtk_style_context_add_class(sc, "aether-pill");
@@ -147,7 +158,8 @@ static GtkWidget *build_pill(JsonObject *pill_obj)
 /* Build all pills from a JSON array and pack them into @target_box. */
 static void build_zone(JsonArray  *arr,
                         GtkWidget  *target_box,
-                        gboolean    pack_end)
+                        gboolean    pack_end,
+                        GtkOrientation orientation)
 {
     if (!arr || !target_box) return;
 
@@ -156,7 +168,7 @@ static void build_zone(JsonArray  *arr,
         JsonObject *pill_obj = json_array_get_object_element(arr, i);
         if (!pill_obj) continue;
 
-        GtkWidget *pill = build_pill(pill_obj);
+        GtkWidget *pill = build_pill(pill_obj, orientation);
         if (!pill) continue;
 
         if (pack_end)
@@ -192,17 +204,21 @@ GtkWidget *layout_builder_build(const char *json_path)
     JsonNode   *root     = json_parser_get_root(parser);
     JsonObject *root_obj = json_node_get_object(root);
 
+    GtkOrientation orientation = (cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_RIGHT) 
+                                 ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
+
     /* ── Outer content box ─────────────────────────────────────────────── */
-    GtkWidget *content = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, cfg.spacing);
+    GtkWidget *content = gtk_box_new(orientation, cfg.spacing);
     gtk_widget_set_name(content, "panel-content");
     gtk_widget_set_margin_start(content, cfg.margin_left);
     gtk_widget_set_margin_end  (content, cfg.margin_right);
     gtk_widget_set_margin_top  (content, cfg.margin_top);
+    gtk_widget_set_margin_bottom(content, cfg.margin_bottom);
 
     /* ── Three zones: left, center, right ──────────────────────────────── */
-    GtkWidget *left_box   = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, cfg.spacing);
-    GtkWidget *center_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, cfg.spacing);
-    GtkWidget *right_box  = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, cfg.spacing);
+    GtkWidget *left_box   = gtk_box_new(orientation, cfg.spacing);
+    GtkWidget *center_box = gtk_box_new(orientation, cfg.spacing);
+    GtkWidget *right_box  = gtk_box_new(orientation, cfg.spacing);
 
     gtk_widget_set_name(left_box,   "zone-left");
     gtk_widget_set_name(center_box, "zone-center");
@@ -215,15 +231,15 @@ GtkWidget *layout_builder_build(const char *json_path)
 
         if (json_object_has_member(layout, "left"))
             build_zone(json_object_get_array_member(layout, "left"),
-                       left_box, FALSE);
+                       left_box, FALSE, orientation);
 
         if (json_object_has_member(layout, "center"))
             build_zone(json_object_get_array_member(layout, "center"),
-                       center_box, FALSE);
+                       center_box, FALSE, orientation);
 
         if (json_object_has_member(layout, "right"))
             build_zone(json_object_get_array_member(layout, "right"),
-                       right_box, TRUE);   /* pack_end for right zone */
+                       right_box, TRUE, orientation);   /* pack_end for right zone */
     }
 
     /* Pack zones: left sticks to start, right to end, center floats */

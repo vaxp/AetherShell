@@ -6,6 +6,7 @@
 
 void panel_window_backend_detect(void);
 gboolean panel_window_backend_is_wayland(void);
+void panel_window_backend_set_panel_position(int position);
 
 void panel_window_backend_init_panel(GtkWindow *window, const char *namespace_name);
 void panel_window_backend_init_popup(GtkWindow *window,

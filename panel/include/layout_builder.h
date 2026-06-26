@@ -31,15 +31,24 @@
  *   }
  * ========================================================================= */
 
+typedef enum {
+    PANEL_POSITION_TOP,
+    PANEL_POSITION_BOTTOM,
+    PANEL_POSITION_LEFT,
+    PANEL_POSITION_RIGHT
+} PanelPosition;
+
 /**
  * PanelLayoutConfig — settings parsed from the "panel" object.
  */
 typedef struct {
     int height;        /* panel bar height in pixels  (default 36)          */
     int margin_top;    /* Wayland exclusive-zone top margin  (default 4)    */
+    int margin_bottom;
     int margin_left;   /* panel content left margin          (default 8)    */
     int margin_right;  /* panel content right margin         (default 8)    */
     int spacing;       /* default spacing between pills      (default 8)    */
+    PanelPosition position;
 } PanelLayoutConfig;
 
 /**

@@ -45,8 +45,9 @@ static const char *PANEL_DEFAULT_JSON =
     "  \"_comment\": \"AetherShell Panel — auto-generated default layout.\",\n"
     "  \"panel\": {\n"
     "    \"height\"  : 36,\n"
+    "    \"position\": \"top\",\n"
     "    \"spacing\" : 8,\n"
-    "    \"margin\"  : { \"top\": 4, \"left\": 8, \"right\": 8 }\n"
+    "    \"margin\"  : { \"top\": 4, \"bottom\": 0, \"left\": 8, \"right\": 8 }\n"
     "  },\n"
     "  \"layout\": {\n"
     "    \"left\": [\n"
@@ -73,6 +74,7 @@ static const char *PANEL_DEFAULT_JSON =
 static char    *g_executable_path   = NULL;
 static guint    g_recovery_source   = 0;
 static int      g_panel_height      = DEFAULT_PANEL_HEIGHT;
+static PanelPosition g_panel_position = PANEL_POSITION_TOP;
 
 /* ── Layout live-reload state ───────────────────────────────────────────────── */
 
@@ -176,8 +178,13 @@ static void on_screen_changed(GdkScreen *screen, gpointer user_data)
     (void)screen;
 
     if (get_widget_monitor_geometry(window, &geom)) {
-        gtk_widget_set_size_request(window, geom.width, g_panel_height);
-        gtk_window_resize(GTK_WINDOW(window), geom.width, g_panel_height);
+        if (g_panel_position == PANEL_POSITION_LEFT || g_panel_position == PANEL_POSITION_RIGHT) {
+            gtk_widget_set_size_request(window, g_panel_height, geom.height);
+            gtk_window_resize(GTK_WINDOW(window), g_panel_height, geom.height);
+        } else {
+            gtk_widget_set_size_request(window, geom.width, g_panel_height);
+            gtk_window_resize(GTK_WINDOW(window), geom.width, g_panel_height);
+        }
     }
 }
 
@@ -200,6 +207,49 @@ static gboolean do_reload_layout(gpointer data)
     if (g_content) {
         gtk_widget_destroy(g_content);
         g_content = NULL;
+    }
+
+    /* Update panel config and window anchors dynamically */
+    PanelLayoutConfig cfg;
+    cfg.height = DEFAULT_PANEL_HEIGHT;
+    cfg.margin_top = 4;
+    cfg.margin_bottom = 0;
+    cfg.margin_left = 8;
+    cfg.margin_right = 8;
+    cfg.spacing = 8;
+    cfg.position = PANEL_POSITION_TOP;
+
+    if (layout_builder_parse_config(g_layout_json_path, &cfg)) {
+        g_panel_height = cfg.height;
+        g_panel_position = cfg.position;
+        panel_window_backend_set_panel_position(cfg.position);
+
+        GtkWidget *window = gtk_widget_get_toplevel(g_panel_bar);
+        if (GTK_IS_WINDOW(window)) {
+            panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   cfg.position == PANEL_POSITION_TOP || cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_RIGHT);
+            panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_TOP || cfg.position == PANEL_POSITION_BOTTOM);
+            panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, cfg.position == PANEL_POSITION_RIGHT || cfg.position == PANEL_POSITION_TOP || cfg.position == PANEL_POSITION_BOTTOM);
+            panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, cfg.position == PANEL_POSITION_BOTTOM || cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_RIGHT);
+
+            panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   cfg.margin_top);
+            panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  cfg.margin_left);
+            panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, cfg.margin_right);
+            panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, cfg.margin_bottom);
+
+            GdkRectangle geom = {0};
+            if (get_widget_monitor_geometry(window, &geom)) {
+                if (cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_RIGHT) {
+                    gtk_widget_set_size_request(window, g_panel_height, geom.height);
+                    gtk_window_resize(GTK_WINDOW(window), g_panel_height, geom.height);
+                } else {
+                    gtk_widget_set_size_request(window, geom.width, g_panel_height);
+                    gtk_window_resize(GTK_WINDOW(window), geom.width, g_panel_height);
+                }
+            }
+        }
+
+        GtkOrientation orientation = (cfg.position == PANEL_POSITION_LEFT || cfg.position == PANEL_POSITION_RIGHT) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
+        gtk_orientable_set_orientation(GTK_ORIENTABLE(g_panel_bar), orientation);
     }
 
     /* Step 3: Build a new layout — layout_builder reuses the live widgets */
@@ -263,7 +313,7 @@ static void start_layout_monitor(const char *path)
 
 /* ── Window setup ──────────────────────────────────────────────────────────── */
 
-static GtkWidget *create_panel_window(GdkScreen *screen)
+static GtkWidget *create_panel_window(GdkScreen *screen, PanelLayoutConfig *cfg)
 {
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_decorated(GTK_WINDOW(window), FALSE);
@@ -272,14 +322,15 @@ static GtkWidget *create_panel_window(GdkScreen *screen)
 
     /* Layer-shell anchoring */
     panel_window_backend_init_panel(GTK_WINDOW(window), "con-panel");
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   cfg->position == PANEL_POSITION_TOP || cfg->position == PANEL_POSITION_LEFT || cfg->position == PANEL_POSITION_RIGHT);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  cfg->position == PANEL_POSITION_LEFT || cfg->position == PANEL_POSITION_TOP || cfg->position == PANEL_POSITION_BOTTOM);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, cfg->position == PANEL_POSITION_RIGHT || cfg->position == PANEL_POSITION_TOP || cfg->position == PANEL_POSITION_BOTTOM);
+    panel_window_backend_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, cfg->position == PANEL_POSITION_BOTTOM || cfg->position == PANEL_POSITION_LEFT || cfg->position == PANEL_POSITION_RIGHT);
     panel_window_backend_auto_exclusive_zone_enable(GTK_WINDOW(window));
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   0);
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  0);
-    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP,   cfg->margin_top);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT,  cfg->margin_left);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, cfg->margin_right);
+    panel_window_backend_set_margin(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, cfg->margin_bottom);
 
     /* RGBA visual for transparency */
     GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
@@ -291,12 +342,18 @@ static GtkWidget *create_panel_window(GdkScreen *screen)
     /* Initial size */
     GdkRectangle geom = {0};
     if (get_primary_monitor_geometry(screen, &geom)) {
-        gtk_widget_set_size_request(window, geom.width, g_panel_height);
-        gtk_window_set_default_size(GTK_WINDOW(window), geom.width, g_panel_height);
+        if (cfg->position == PANEL_POSITION_LEFT || cfg->position == PANEL_POSITION_RIGHT) {
+            gtk_widget_set_size_request(window, g_panel_height, geom.height);
+            gtk_window_set_default_size(GTK_WINDOW(window), g_panel_height, geom.height);
+        } else {
+            gtk_widget_set_size_request(window, geom.width, g_panel_height);
+            gtk_window_set_default_size(GTK_WINDOW(window), geom.width, g_panel_height);
+        }
     }
 
     /* Background container */
-    GtkWidget *panel_bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    GtkOrientation orientation = (cfg->position == PANEL_POSITION_LEFT || cfg->position == PANEL_POSITION_RIGHT) ? GTK_ORIENTATION_VERTICAL : GTK_ORIENTATION_HORIZONTAL;
+    GtkWidget *panel_bar = gtk_box_new(orientation, 0);
     gtk_widget_set_name(panel_bar, "panel-bar");
     gtk_container_add(GTK_CONTAINER(window), panel_bar);
 
@@ -387,23 +444,34 @@ int main(int argc, char *argv[])
     plugin_engine_scan_dir(user_plugin_dir);
     g_free(user_plugin_dir);
 
+    /* ── Build layout from JSON ───────────────────────────────────────────── */
+    g_layout_json_path = resolve_layout_json_path();
+
+    PanelLayoutConfig cfg;
+    cfg.height = DEFAULT_PANEL_HEIGHT;
+    cfg.margin_top = 4;
+    cfg.margin_bottom = 0;
+    cfg.margin_left = 8;
+    cfg.margin_right = 8;
+    cfg.spacing = 8;
+    cfg.position = PANEL_POSITION_TOP;
+
+    /* Parse height from JSON before we build (so window sizing is correct) */
+    if (g_layout_json_path) {
+        if (layout_builder_parse_config(g_layout_json_path, &cfg)) {
+            g_panel_height = cfg.height;
+            g_panel_position = cfg.position;
+            panel_window_backend_set_panel_position(cfg.position);
+        }
+    }
+
     /* ── Create window ────────────────────────────────────────────────────── */
     GdkScreen  *screen = gdk_screen_get_default();
-    GtkWidget  *window = create_panel_window(screen);
+    GtkWidget  *window = create_panel_window(screen, &cfg);
 
     g_signal_connect(screen, "size-changed",     G_CALLBACK(on_screen_changed), window);
     g_signal_connect(screen, "monitors-changed", G_CALLBACK(on_screen_changed), window);
     g_signal_connect(window, "destroy",          G_CALLBACK(on_panel_window_destroy), NULL);
-
-    /* ── Build layout from JSON ───────────────────────────────────────────── */
-    g_layout_json_path = resolve_layout_json_path();
-
-    /* Parse height from JSON before we build (so window sizing is correct) */
-    if (g_layout_json_path) {
-        PanelLayoutConfig cfg;
-        if (layout_builder_parse_config(g_layout_json_path, &cfg))
-            g_panel_height = cfg.height;
-    }
 
     g_content = g_layout_json_path
         ? layout_builder_build(g_layout_json_path)

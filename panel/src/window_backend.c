@@ -25,6 +25,11 @@ typedef enum {
 static WindowBackendState *get_backend_state(GtkWindow *window);
 
 static PanelBackendType detected_backend = PANEL_BACKEND_UNKNOWN;
+static int s_panel_position = 0;
+
+void panel_window_backend_set_panel_position(int position) {
+    s_panel_position = position;
+}
 
 /* ─── X11 exclusive-zone emulation ───────────────────────────────────
  * On Wayland, the compositor automatically keeps layer-shell popup windows
@@ -503,7 +508,9 @@ void panel_window_backend_align_popup(GtkWindow *popup, GtkWidget *relative_to, 
     GdkWindow *window;
     GdkDisplay *display;
     gint origin_x = 0;
+    gint origin_y = 0;
     gint btn_center_x;
+    gint btn_center_y;
 
     if (!popup || !relative_to) return;
     if (!gtk_widget_get_realized(relative_to)) return;
@@ -519,34 +526,50 @@ void panel_window_backend_align_popup(GtkWindow *popup, GtkWidget *relative_to, 
 
     gdk_monitor_get_geometry(m, &monitor);
     gtk_widget_get_allocation(relative_to, &alloc);
-    gdk_window_get_origin(window, &origin_x, NULL);
+    gdk_window_get_origin(window, &origin_x, &origin_y);
 
     btn_center_x = origin_x + alloc.x + (alloc.width / 2);
+    btn_center_y = origin_y + alloc.y + (alloc.height / 2);
 
-    if (btn_center_x > monitor.x + (monitor.width / 2)) {
-        // Right half of the monitor -> anchor RIGHT
-        gint right_margin = monitor.x + monitor.width - (btn_center_x + (popup_width / 2));
-        right_margin = MAX(right_margin, 8);
+    gboolean anchor_top = FALSE, anchor_bottom = FALSE, anchor_left = FALSE, anchor_right = FALSE;
+    gint margin_left = 0, margin_right = 0, margin_top = 0, margin_bottom = 0;
 
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, FALSE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+    if (s_panel_position == 0 || s_panel_position == 1) { // TOP or BOTTOM
+        if (s_panel_position == 0) anchor_top = TRUE;
+        else anchor_bottom = TRUE;
+        
+        if (btn_center_x > monitor.x + (monitor.width / 2)) {
+            // Right half
+            anchor_right = TRUE;
+            margin_right = MAX(monitor.x + monitor.width - (btn_center_x + (popup_width / 2)), 8);
+        } else {
+            // Left half
+            anchor_left = TRUE;
+            margin_left = MAX(btn_center_x - (popup_width / 2) - monitor.x, 8);
+        }
+    } else { // LEFT or RIGHT
+        if (s_panel_position == 2) anchor_left = TRUE;
+        else anchor_right = TRUE;
 
-        panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, 0);
-        panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, right_margin);
-    } else {
-        // Left half of the monitor -> anchor LEFT
-        gint left_margin = btn_center_x - (popup_width / 2) - monitor.x;
-        left_margin = MAX(left_margin, 8);
-
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, FALSE);
-        panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
-
-        panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, 0);
-        panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, left_margin);
+        if (btn_center_y > monitor.y + (monitor.height / 2)) {
+            // Bottom half
+            anchor_bottom = TRUE;
+            margin_bottom = MAX(monitor.y + monitor.height - (origin_y + alloc.y + alloc.height), 8);
+        } else {
+            // Top half
+            anchor_top = TRUE;
+            margin_top = MAX(origin_y + alloc.y - monitor.y, 8);
+        }
     }
+
+    panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_TOP, anchor_top);
+    panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_BOTTOM, anchor_bottom);
+    panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, anchor_left);
+    panel_window_backend_set_anchor(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, anchor_right);
+
+    panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_TOP, margin_top);
+    panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_BOTTOM, margin_bottom);
+    panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_LEFT, margin_left);
+    panel_window_backend_set_margin(GTK_WINDOW(popup), GTK_LAYER_SHELL_EDGE_RIGHT, margin_right);
 }
 

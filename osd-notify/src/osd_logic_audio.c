@@ -21,9 +21,9 @@ static gboolean get_overamplification(void) {
 
     GVariant *result = g_dbus_connection_call_sync(
         conn,
-        "org.venom.Audio",
-        "/org/venom/Audio",
-        "org.venom.Audio",
+        "org.vaxp.Audio",
+        "/org/vaxp/Audio",
+        "org.vaxp.Audio",
         "GetOveramplification",
         NULL,
         G_VARIANT_TYPE("(b)"),
@@ -150,7 +150,7 @@ static void context_state_cb(pa_context *c, void *userdata) {
 void osd_logic_audio_setup_pulseaudio(void) {
     my_pa_mainloop = pa_glib_mainloop_new(NULL);
     pa_mainloop_api *api = pa_glib_mainloop_get_api(my_pa_mainloop);
-    pa_ctx = pa_context_new(api, "Venom OSD");
+    pa_ctx = pa_context_new(api, "Vaxp OSD");
 
     pa_context_set_state_callback(pa_ctx, context_state_cb, NULL);
     pa_context_connect(pa_ctx, NULL, PA_CONTEXT_NOFLAGS, NULL);

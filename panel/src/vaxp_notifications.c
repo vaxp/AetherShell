@@ -1,7 +1,9 @@
-#include "venom_notifications.h"
+#include "vaxp_notifications.h"
 #include <gio/gio.h>
 
 static GDBusProxy *m_proxy = NULL;
+static guint m_signal_id_history = 0;
+static guint m_signal_id_dnd = 0;
 
 static NotificationsUpdatedCallback m_history_cb = NULL;
 static DndChangedCallback m_dnd_cb = NULL;
@@ -10,10 +12,10 @@ static gpointer m_callback_data = NULL;
 static void free_notification_data(gpointer data) {
     NotificationData *n = (NotificationData *)data;
     g_free(n->app_name);
-    g_free(n->desktop_entry);
     g_free(n->icon_path);
     g_free(n->summary);
     g_free(n->body);
+    g_free(n->desktop_entry);
     g_free(n);
 }
 
@@ -56,10 +58,10 @@ static void fetch_history(void) {
             history_list = g_list_append(history_list, n);
             
             g_free(app);
-            g_free(desktop_entry);
             g_free(icon);
             g_free(summary);
             g_free(body);
+            g_free(desktop_entry);
         }
         g_variant_iter_free(iter);
         g_variant_unref(child);
@@ -109,7 +111,7 @@ static void on_proxy_ready(GObject *source_object, GAsyncResult *res, gpointer u
     GError *error = NULL;
     m_proxy = g_dbus_proxy_new_for_bus_finish(res, &error);
     if (!m_proxy) {
-        g_printerr("Error connecting to Venom notifications: %s\n", error->message);
+        g_printerr("Error connecting to Vaxp notifications: %s\n", error->message);
         g_error_free(error);
         return;
     }
@@ -121,7 +123,7 @@ static void on_proxy_ready(GObject *source_object, GAsyncResult *res, gpointer u
     fetch_history();
 }
 
-void venom_notifications_init(NotificationsUpdatedCallback history_cb, DndChangedCallback dnd_cb, gpointer user_data) {
+void vaxp_notifications_init(NotificationsUpdatedCallback history_cb, DndChangedCallback dnd_cb, gpointer user_data) {
     m_history_cb = history_cb;
     m_dnd_cb = dnd_cb;
     m_callback_data = user_data;
@@ -131,13 +133,13 @@ void venom_notifications_init(NotificationsUpdatedCallback history_cb, DndChange
                              NULL,
                              "org.freedesktop.Notifications",
                              "/org/freedesktop/Notifications",
-                             "org.venom.NotificationHistory",
+                             "org.vaxp.NotificationHistory",
                              NULL,
                              on_proxy_ready,
                              NULL);
 }
 
-void venom_notifications_set_dnd(gboolean enabled) {
+void vaxp_notifications_set_dnd(gboolean enabled) {
     if (!m_proxy) return;
     g_dbus_proxy_call(m_proxy,
                       "SetDoNotDisturb",
@@ -149,11 +151,23 @@ void venom_notifications_set_dnd(gboolean enabled) {
                       NULL);
 }
 
-void venom_notifications_clear_history(void) {
+void vaxp_notifications_clear_history(void) {
     if (!m_proxy) return;
     g_dbus_proxy_call(m_proxy,
                       "ClearHistory",
                       NULL,
+                      G_DBUS_CALL_FLAGS_NONE,
+                      -1,
+                      NULL,
+                      NULL,
+                      NULL);
+}
+
+void vaxp_notifications_invoke_default_action(guint32 id) {
+    if (!m_proxy) return;
+    g_dbus_proxy_call(m_proxy,
+                      "InvokeDefaultAction",
+                      g_variant_new("(u)", id),
                       G_DBUS_CALL_FLAGS_NONE,
                       -1,
                       NULL,

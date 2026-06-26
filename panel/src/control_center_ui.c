@@ -1212,7 +1212,7 @@ GtkWidget* init_control_center(void) {
     // Header Left
     GtkWidget *box_left = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget *arrow = gtk_image_new_from_icon_name("pan-down-symbolic", GTK_ICON_SIZE_MENU);
-    GtkWidget *title = gtk_label_new("Venom");
+    GtkWidget *title = gtk_label_new("Vaxp");
     gtk_style_context_add_class(gtk_widget_get_style_context(title), "app-title");
     gtk_box_pack_start(GTK_BOX(box_left), arrow, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box_left), title, FALSE, FALSE, 0);

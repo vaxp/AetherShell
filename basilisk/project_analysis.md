@@ -1,6 +1,6 @@
-# 🐍 Venom Basilisk Project Analysis
+# 🐍 Vaxp Basilisk Project Analysis
 
-Venom Basilisk is a lightweight, Venom Basilisk application launcher for the Venom Desktop Environment. It is written in C using GTK+ 3.0 and GIO/GDBus.
+Vaxp Basilisk is a lightweight, Vaxp Basilisk application launcher for the Vaxp Desktop Environment. It is written in C using GTK+ 3.0 and GIO/GDBus.
 
 ## 📂 Project Structure
 
@@ -9,7 +9,7 @@ The project has been refactored into a clean structure:
 -   `src/`: Contains all source code (`.c`) files.
 -   `include/`: Contains all header (`.h`) files.
 -   `obj/`: Contains compiled object (`.o`) files.
--   `venom_basilisk`: The compiled binary executable.
+-   `vaxp_basilisk`: The compiled binary executable.
 -   `Makefile`: Build configuration script.
 
 ## 🛠️ Build & Installation
@@ -20,7 +20,7 @@ To build the project, simply run:
 make
 ```
 
-To install it to `/usr/bin/venom_basilisk`:
+To install it to `/usr/bin/vaxp_basilisk`:
 
 ```bash
 sudo make install
@@ -30,9 +30,9 @@ sudo make install
 
 The application exposes a D-Bus interface to allow external control (showing, hiding, toggling). This is useful for binding the launcher to a keyboard shortcut (e.g., Super+Space).
 
--   **Service Name**: `org.venom.Basilisk`
--   **Object Path**: `/org/venom/Basilisk`
--   **Interface**: `org.venom.Basilisk`
+-   **Service Name**: `org.vaxp.Basilisk`
+-   **Object Path**: `/org/vaxp/Basilisk`
+-   **Interface**: `org.vaxp.Basilisk`
 
 ### Methods
 
@@ -51,39 +51,39 @@ You can use `dbus-send` or `gdbus` to control the launcher from the terminal or 
 
 **Toggle Visibility:**
 ```bash
-gdbus call --session --dest org.venom.Basilisk --object-path /org/venom/Basilisk --method org.venom.Basilisk.Toggle
+gdbus call --session --dest org.vaxp.Basilisk --object-path /org/vaxp/Basilisk --method org.vaxp.Basilisk.Toggle
 ```
 
 **Show Launcher:**
 ```bash
-gdbus call --session --dest org.venom.Basilisk --object-path /org/venom/Basilisk --method org.venom.Basilisk.Show
+gdbus call --session --dest org.vaxp.Basilisk --object-path /org/vaxp/Basilisk --method org.vaxp.Basilisk.Show
 ```
 
 **Hide Launcher:**
 ```bash
-gdbus call --session --dest org.venom.Basilisk --object-path /org/venom/Basilisk --method org.venom.Basilisk.Hide
+gdbus call --session --dest org.vaxp.Basilisk --object-path /org/vaxp/Basilisk --method org.vaxp.Basilisk.Hide
 ```
 
 **Search for "Firefox":**
 ```bash
-gdbus call --session --dest org.venom.Basilisk --object-path /org/venom/Basilisk --method org.venom.Basilisk.Search "Firefox"
+gdbus call --session --dest org.vaxp.Basilisk --object-path /org/vaxp/Basilisk --method org.vaxp.Basilisk.Search "Firefox"
 ```
 
 #### Using `dbus-send`
 
 **Toggle Visibility:**
 ```bash
-dbus-send --session --type=method_call --dest=org.venom.Basilisk /org/venom/Basilisk org.venom.Basilisk.Toggle
+dbus-send --session --type=method_call --dest=org.vaxp.Basilisk /org/vaxp/Basilisk org.vaxp.Basilisk.Toggle
 ```
 
 ## 🚀 Usage
 
 Run the daemon in the background (usually effectively by your session manager or systemd):
 ```bash
-./venom_basilisk &
+./vaxp_basilisk &
 ```
 
 Or show it immediately on startup:
 ```bash
-./venom_basilisk --show
+./vaxp_basilisk --show
 ```

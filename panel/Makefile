@@ -35,7 +35,7 @@ ENGINE_SRC = src/plugin_engine.c \
 # Existing panel components (unchanged)
 COMPONENT_SRC = src/control_center_ui.c src/app_menu.c \
                 src/battery_indicator.c src/pulse_volume.c src/power_profile.c \
-                src/mpris_control.c src/power_actions.c src/venom_notifications.c \
+                src/mpris_control.c src/power_actions.c src/vaxp_notifications.c \
                 src/workspaces.c src/keyboard_layout.c src/sni_tray.c src/resource_paths.c \
                 src/network_actions.c src/brightness_control.c src/volume_indicator.c \
                 src/mic_indicator.c src/wifi_indicator.c src/sidebar.c src/notifications_ui.c \

@@ -13,7 +13,7 @@
 #include "seat.h"
 #include "sysstats.h"
 #include "weather.h"
-#include "venom_notifications.h"
+#include "vaxp_notifications.h"
 
 // Indicator state: status of authentication attempt
 enum auth_state {

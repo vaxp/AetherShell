@@ -25,7 +25,7 @@ static guint signals[N_SIGNALS];
  * inside the same Wayland surface.
  * ------------------------------------------------------------------------- */
 
-struct _VenomUninstallDialog {
+struct _VaxpUninstallDialog {
     GtkBox      parent_instance;    /* full-screen backdrop */
 
     AppEntry   *entry;              /* Not owned */
@@ -45,7 +45,7 @@ struct _VenomUninstallDialog {
     GtkWidget  *result_detail;
 };
 
-G_DEFINE_TYPE (VenomUninstallDialog, venom_uninstall_dialog, GTK_TYPE_BOX)
+G_DEFINE_TYPE (VaxpUninstallDialog, vaxp_uninstall_dialog, GTK_TYPE_BOX)
 
 /* -------------------------------------------------------------------------
  * CSS
@@ -139,15 +139,15 @@ inject_dialog_css (void)
  * ------------------------------------------------------------------------- */
 
 static void
-dismiss_self (VenomUninstallDialog *self)
+dismiss_self (VaxpUninstallDialog *self)
 {
     /* Find the launcher window and ask it to remove this overlay */
     GtkWidget *overlay_parent = gtk_widget_get_parent (GTK_WIDGET (self));
     if (overlay_parent && GTK_IS_OVERLAY (overlay_parent)) {
         GtkWidget *launcher = gtk_widget_get_parent (overlay_parent);
-        if (launcher && VENOM_IS_LAUNCHER_WINDOW (launcher)) {
-            venom_launcher_window_pop_overlay (
-                VENOM_LAUNCHER_WINDOW (launcher), GTK_WIDGET (self));
+        if (launcher && VAXP_IS_LAUNCHER_WINDOW (launcher)) {
+            vaxp_launcher_window_pop_overlay (
+                VAXP_LAUNCHER_WINDOW (launcher), GTK_WIDGET (self));
             return;
         }
     }
@@ -163,13 +163,13 @@ static void
 on_cancel_clicked (GtkButton *btn, gpointer data)
 {
     (void) btn;
-    VenomUninstallDialog *self = VENOM_UNINSTALL_DIALOG (data);
+    VaxpUninstallDialog *self = VAXP_UNINSTALL_DIALOG (data);
     g_signal_emit (self, signals[SIGNAL_DISMISS], 0);
     dismiss_self (self);
 }
 
 static GtkWidget *
-build_confirm_page (VenomUninstallDialog *self)
+build_confirm_page (VaxpUninstallDialog *self)
 {
     GtkWidget *vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 18);
     gtk_widget_set_margin_start  (vbox, 32);
@@ -234,14 +234,14 @@ build_confirm_page (VenomUninstallDialog *self)
     gtk_style_context_add_class (
         gtk_widget_get_style_context (confirm_btn), "uninstall-confirm-btn");
     g_signal_connect_swapped (confirm_btn, "clicked",
-                              G_CALLBACK (venom_uninstall_dialog_run_async), self);
+                              G_CALLBACK (vaxp_uninstall_dialog_run_async), self);
     gtk_box_pack_end (GTK_BOX (btn_box), confirm_btn, FALSE, FALSE, 0);
 
     return vbox;
 }
 
 static GtkWidget *
-build_progress_page (VenomUninstallDialog *self)
+build_progress_page (VaxpUninstallDialog *self)
 {
     GtkWidget *vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 20);
     gtk_widget_set_margin_start  (vbox, 40);
@@ -264,7 +264,7 @@ build_progress_page (VenomUninstallDialog *self)
 }
 
 static GtkWidget *
-build_result_page (VenomUninstallDialog *self)
+build_result_page (VaxpUninstallDialog *self)
 {
     GtkWidget *vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 14);
     gtk_widget_set_margin_start  (vbox, 32);
@@ -326,7 +326,7 @@ typedef enum {
 } AppType;
 
 typedef struct {
-    VenomUninstallDialog *dialog;
+    VaxpUninstallDialog *dialog;
     char                 *desktop_path;   /* for dpkg -S */
     char                 *exec_binary;    /* first word of Exec= for binary lookup */
     char                 *package_hint;   /* filename-stem fallback */
@@ -336,7 +336,7 @@ typedef struct {
 } UninstallTask;
 
 typedef struct {
-    VenomUninstallDialog *dialog;
+    VaxpUninstallDialog *dialog;
     gboolean              success;
     char                 *detail_msg;
 } UninstallResult;
@@ -444,7 +444,7 @@ static gboolean
 on_uninstall_finished_idle (gpointer user_data)
 {
     UninstallResult      *res  = user_data;
-    VenomUninstallDialog *self = res->dialog;
+    VaxpUninstallDialog *self = res->dialog;
 
     if (!GTK_IS_WIDGET (self)) {
         g_free (res->detail_msg);
@@ -610,7 +610,7 @@ done:
  * ------------------------------------------------------------------------- */
 
 static void
-venom_uninstall_dialog_class_init (VenomUninstallDialogClass *klass)
+vaxp_uninstall_dialog_class_init (VaxpUninstallDialogClass *klass)
 {
     signals[SIGNAL_UNINSTALL_DONE] =
         g_signal_new ("uninstall-done",
@@ -628,7 +628,7 @@ venom_uninstall_dialog_class_init (VenomUninstallDialogClass *klass)
 }
 
 static void
-venom_uninstall_dialog_init (VenomUninstallDialog *self)
+vaxp_uninstall_dialog_init (VaxpUninstallDialog *self)
 {
     inject_dialog_css ();
 
@@ -668,10 +668,10 @@ venom_uninstall_dialog_init (VenomUninstallDialog *self)
  * ------------------------------------------------------------------------- */
 
 GtkWidget *
-venom_uninstall_dialog_new (AppEntry *entry)
+vaxp_uninstall_dialog_new (AppEntry *entry)
 {
-    VenomUninstallDialog *self =
-        g_object_new (VENOM_TYPE_UNINSTALL_DIALOG, NULL);
+    VaxpUninstallDialog *self =
+        g_object_new (VAXP_TYPE_UNINSTALL_DIALOG, NULL);
 
     self->entry = entry;
 
@@ -690,9 +690,9 @@ venom_uninstall_dialog_new (AppEntry *entry)
 }
 
 void
-venom_uninstall_dialog_run_async (VenomUninstallDialog *self)
+vaxp_uninstall_dialog_run_async (VaxpUninstallDialog *self)
 {
-    g_return_if_fail (VENOM_IS_UNINSTALL_DIALOG (self));
+    g_return_if_fail (VAXP_IS_UNINSTALL_DIALOG (self));
     g_return_if_fail (self->entry != NULL);
 
     gtk_stack_set_visible_child_name (GTK_STACK (self->stack), "progress");

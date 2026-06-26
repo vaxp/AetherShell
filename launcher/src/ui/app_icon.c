@@ -7,21 +7,21 @@
  * Widget struct
  * ------------------------------------------------------------------------- */
 
-struct _VenomAppIcon {
+struct _VaxpAppIcon {
     GtkButton  parent_instance;
     AppEntry  *entry;
     GtkWidget *image;
     GtkWidget *label;
 };
 
-G_DEFINE_TYPE (VenomAppIcon, venom_app_icon, GTK_TYPE_BUTTON)
+G_DEFINE_TYPE (VaxpAppIcon, vaxp_app_icon, GTK_TYPE_BUTTON)
 
 /* -------------------------------------------------------------------------
  * Icon ready callback (async)
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-    VenomAppIcon *icon;
+    VaxpAppIcon *icon;
     gulong        destroy_id;
 } IconLoadCtx;
 
@@ -38,7 +38,7 @@ static void
 on_icon_ready (GdkPixbuf *pixbuf, gpointer user_data)
 {
     IconLoadCtx  *ctx  = user_data;
-    VenomAppIcon *self = ctx->icon;
+    VaxpAppIcon *self = ctx->icon;
 
     if (self && pixbuf) {
         gtk_image_set_from_pixbuf (GTK_IMAGE (self->image), pixbuf);
@@ -55,7 +55,7 @@ on_icon_ready (GdkPixbuf *pixbuf, gpointer user_data)
  * ------------------------------------------------------------------------- */
 
 static void
-launch_app (VenomAppIcon *self)
+launch_app (VaxpAppIcon *self)
 {
     if (!self->entry || !self->entry->exec) return;
 
@@ -77,7 +77,7 @@ static void
 on_clicked (GtkButton *btn, gpointer user_data)
 {
     (void) user_data;
-    launch_app (VENOM_APP_ICON (btn));
+    launch_app (VAXP_APP_ICON (btn));
 }
 
 /* -------------------------------------------------------------------------
@@ -88,14 +88,14 @@ static void
 on_menu_run (GtkMenuItem *item, gpointer data)
 {
     (void) item;
-    launch_app (VENOM_APP_ICON (data));
+    launch_app (VAXP_APP_ICON (data));
 }
 
 static void
 on_menu_shortcut (GtkMenuItem *item, gpointer data)
 {
     (void) item;
-    VenomAppIcon *self  = VENOM_APP_ICON (data);
+    VaxpAppIcon *self  = VAXP_APP_ICON (data);
     AppEntry     *entry = self->entry;
 
     if (!entry || !entry->desktop_path) return;
@@ -132,23 +132,23 @@ on_menu_shortcut (GtkMenuItem *item, gpointer data)
 
 /* Called when the dialog signals that removal is done */
 static void
-on_uninstall_done (VenomUninstallDialog *dialog,
+on_uninstall_done (VaxpUninstallDialog *dialog,
                    gboolean              success,
                    gpointer              user_data)
 {
     (void) dialog;
     if (!success) return;
 
-    VenomAppIcon *self  = VENOM_APP_ICON (user_data);
+    VaxpAppIcon *self  = VAXP_APP_ICON (user_data);
     AppEntry     *entry = self->entry;
 
     /* Walk up the widget tree to find the AppGrid */
     GtkWidget *parent = gtk_widget_get_parent (GTK_WIDGET (self));
-    while (parent && !VENOM_IS_APP_GRID (parent))
+    while (parent && !VAXP_IS_APP_GRID (parent))
         parent = gtk_widget_get_parent (parent);
 
-    if (parent && VENOM_IS_APP_GRID (parent)) {
-        venom_app_grid_remove_app (VENOM_APP_GRID (parent), entry);
+    if (parent && VAXP_IS_APP_GRID (parent)) {
+        vaxp_app_grid_remove_app (VAXP_APP_GRID (parent), entry);
         self->entry = NULL;
     }
 }
@@ -157,22 +157,22 @@ static void
 on_menu_uninstall (GtkMenuItem *item, gpointer data)
 {
     (void) item;
-    VenomAppIcon *self  = VENOM_APP_ICON (data);
+    VaxpAppIcon *self  = VAXP_APP_ICON (data);
     AppEntry     *entry = self->entry;
 
     if (!entry || !entry->desktop_path) return;
 
-    /* Find the VenomLauncherWindow (must walk up past FlowBoxChild,
+    /* Find the VaxpLauncherWindow (must walk up past FlowBoxChild,
      * FlowBox → GtkStack → GtkBox → GtkOverlay → launcher window) */
     GtkWidget *win = gtk_widget_get_toplevel (GTK_WIDGET (self));
-    if (!VENOM_IS_LAUNCHER_WINDOW (win)) return;
+    if (!VAXP_IS_LAUNCHER_WINDOW (win)) return;
 
     /* Build overlay widget and inject it into the launcher surface */
-    GtkWidget *dialog = venom_uninstall_dialog_new (entry);
+    GtkWidget *dialog = vaxp_uninstall_dialog_new (entry);
     g_signal_connect (dialog, "uninstall-done",
                       G_CALLBACK (on_uninstall_done), self);
 
-    venom_launcher_window_push_overlay (VENOM_LAUNCHER_WINDOW (win), dialog);
+    vaxp_launcher_window_push_overlay (VAXP_LAUNCHER_WINDOW (win), dialog);
 }
 
 /* -------------------------------------------------------------------------
@@ -183,7 +183,7 @@ static gboolean
 on_button_press (GtkWidget *widget, GdkEventButton *event, gpointer data)
 {
     (void) data;
-    VenomAppIcon *self = VENOM_APP_ICON (widget);
+    VaxpAppIcon *self = VAXP_APP_ICON (widget);
 
     /* Right click (button 3) reveals context menu */
     if (event->type == GDK_BUTTON_PRESS && event->button == 3) {
@@ -215,13 +215,13 @@ on_button_press (GtkWidget *widget, GdkEventButton *event, gpointer data)
  * ------------------------------------------------------------------------- */
 
 static void
-venom_app_icon_class_init (VenomAppIconClass *klass)
+vaxp_app_icon_class_init (VaxpAppIconClass *klass)
 {
     (void) klass;
 }
 
 static void
-venom_app_icon_init (VenomAppIcon *self)
+vaxp_app_icon_init (VaxpAppIcon *self)
 {
     gtk_style_context_add_class (
         gtk_widget_get_style_context (GTK_WIDGET (self)),
@@ -267,17 +267,17 @@ venom_app_icon_init (VenomAppIcon *self)
  * ------------------------------------------------------------------------- */
 
 GtkWidget *
-venom_app_icon_new (AppEntry *entry)
+vaxp_app_icon_new (AppEntry *entry)
 {
-    VenomAppIcon *self = g_object_new (VENOM_TYPE_APP_ICON, NULL);
-    venom_app_icon_set_entry (self, entry);
+    VaxpAppIcon *self = g_object_new (VAXP_TYPE_APP_ICON, NULL);
+    vaxp_app_icon_set_entry (self, entry);
     return GTK_WIDGET (self);
 }
 
 void
-venom_app_icon_set_entry (VenomAppIcon *self, AppEntry *entry)
+vaxp_app_icon_set_entry (VaxpAppIcon *self, AppEntry *entry)
 {
-    g_return_if_fail (VENOM_IS_APP_ICON (self));
+    g_return_if_fail (VAXP_IS_APP_ICON (self));
     self->entry = entry;
 
     gtk_label_set_text (GTK_LABEL (self->label),
@@ -302,8 +302,8 @@ venom_app_icon_set_entry (VenomAppIcon *self, AppEntry *entry)
 }
 
 AppEntry *
-venom_app_icon_get_entry (VenomAppIcon *icon)
+vaxp_app_icon_get_entry (VaxpAppIcon *icon)
 {
-    g_return_val_if_fail (VENOM_IS_APP_ICON (icon), NULL);
+    g_return_val_if_fail (VAXP_IS_APP_ICON (icon), NULL);
     return icon->entry;
 }

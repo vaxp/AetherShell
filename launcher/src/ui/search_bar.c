@@ -4,12 +4,12 @@
  * Widget struct
  * ------------------------------------------------------------------------- */
 
-struct _VenomSearchBar {
+struct _VaxpSearchBar {
     GtkSearchEntry  parent_instance;
     guint           debounce_id;   /* g_timeout source id */
 };
 
-G_DEFINE_TYPE (VenomSearchBar, venom_search_bar, GTK_TYPE_SEARCH_ENTRY)
+G_DEFINE_TYPE (VaxpSearchBar, vaxp_search_bar, GTK_TYPE_SEARCH_ENTRY)
 
 /* Signals */
 enum { SIGNAL_SEARCH_CHANGED, N_SIGNALS };
@@ -22,7 +22,7 @@ static guint signals[N_SIGNALS];
 static gboolean
 debounce_fire (gpointer user_data)
 {
-    VenomSearchBar *self = VENOM_SEARCH_BAR (user_data);
+    VaxpSearchBar *self = VAXP_SEARCH_BAR (user_data);
     self->debounce_id = 0;
     g_signal_emit (self, signals[SIGNAL_SEARCH_CHANGED], 0);
     return G_SOURCE_REMOVE;
@@ -32,7 +32,7 @@ static void
 on_text_changed (GtkEditable *editable, gpointer user_data)
 {
     (void) user_data;
-    VenomSearchBar *self = VENOM_SEARCH_BAR (editable);
+    VaxpSearchBar *self = VAXP_SEARCH_BAR (editable);
 
     /* Cancel pending debounce */
     if (self->debounce_id) {
@@ -49,21 +49,21 @@ on_text_changed (GtkEditable *editable, gpointer user_data)
  * ------------------------------------------------------------------------- */
 
 static void
-venom_search_bar_dispose (GObject *obj)
+vaxp_search_bar_dispose (GObject *obj)
 {
-    VenomSearchBar *self = VENOM_SEARCH_BAR (obj);
+    VaxpSearchBar *self = VAXP_SEARCH_BAR (obj);
     if (self->debounce_id) {
         g_source_remove (self->debounce_id);
         self->debounce_id = 0;
     }
-    G_OBJECT_CLASS (venom_search_bar_parent_class)->dispose (obj);
+    G_OBJECT_CLASS (vaxp_search_bar_parent_class)->dispose (obj);
 }
 
 static void
-venom_search_bar_class_init (VenomSearchBarClass *klass)
+vaxp_search_bar_class_init (VaxpSearchBarClass *klass)
 {
     GObjectClass *obj_class = G_OBJECT_CLASS (klass);
-    obj_class->dispose = venom_search_bar_dispose;
+    obj_class->dispose = vaxp_search_bar_dispose;
 
     signals[SIGNAL_SEARCH_CHANGED] =
         g_signal_new ("search-changed-debounced",
@@ -75,11 +75,11 @@ venom_search_bar_class_init (VenomSearchBarClass *klass)
 }
 
 static void
-venom_search_bar_init (VenomSearchBar *self)
+vaxp_search_bar_init (VaxpSearchBar *self)
 {
     self->debounce_id = 0;
 
-    gtk_widget_set_name (GTK_WIDGET (self), "venom-search-entry");
+    gtk_widget_set_name (GTK_WIDGET (self), "vaxp-search-entry");
     gtk_style_context_add_class (
         gtk_widget_get_style_context (GTK_WIDGET (self)), "search-bar");
 
@@ -96,28 +96,28 @@ venom_search_bar_init (VenomSearchBar *self)
  * ------------------------------------------------------------------------- */
 
 GtkWidget *
-venom_search_bar_new (void)
+vaxp_search_bar_new (void)
 {
-    return g_object_new (VENOM_TYPE_SEARCH_BAR, NULL);
+    return g_object_new (VAXP_TYPE_SEARCH_BAR, NULL);
 }
 
 const char *
-venom_search_bar_get_text (VenomSearchBar *bar)
+vaxp_search_bar_get_text (VaxpSearchBar *bar)
 {
-    g_return_val_if_fail (VENOM_IS_SEARCH_BAR (bar), "");
+    g_return_val_if_fail (VAXP_IS_SEARCH_BAR (bar), "");
     return gtk_entry_get_text (GTK_ENTRY (bar));
 }
 
 void
-venom_search_bar_clear (VenomSearchBar *bar)
+vaxp_search_bar_clear (VaxpSearchBar *bar)
 {
-    g_return_if_fail (VENOM_IS_SEARCH_BAR (bar));
+    g_return_if_fail (VAXP_IS_SEARCH_BAR (bar));
     gtk_entry_set_text (GTK_ENTRY (bar), "");
 }
 
 void
-venom_search_bar_grab_focus (VenomSearchBar *bar)
+vaxp_search_bar_grab_focus (VaxpSearchBar *bar)
 {
-    g_return_if_fail (VENOM_IS_SEARCH_BAR (bar));
+    g_return_if_fail (VAXP_IS_SEARCH_BAR (bar));
     gtk_widget_grab_focus (GTK_WIDGET (bar));
 }

@@ -3,9 +3,9 @@
 
 #include <glib.h>
 
-void venom_power_off(void);
-void venom_reboot(void);
-void venom_logout(void);
-void venom_sleep(void);
+void vaxp_power_off(void);
+void vaxp_reboot(void);
+void vaxp_logout(void);
+void vaxp_sleep(void);
 
 #endif // POWER_ACTIONS_H

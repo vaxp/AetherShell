@@ -4,17 +4,17 @@
 
 G_BEGIN_DECLS
 
-#define VENOM_TYPE_SEARCH_BAR (venom_search_bar_get_type ())
-G_DECLARE_FINAL_TYPE (VenomSearchBar, venom_search_bar,
-                      VENOM, SEARCH_BAR, GtkSearchEntry)
+#define VAXP_TYPE_SEARCH_BAR (vaxp_search_bar_get_type ())
+G_DECLARE_FINAL_TYPE (VaxpSearchBar, vaxp_search_bar,
+                      VAXP, SEARCH_BAR, GtkSearchEntry)
 
 /**
- * VenomSearchBar - Styled search entry with debounce.
+ * VaxpSearchBar - Styled search entry with debounce.
  * Emits "search-changed" signal after 150ms debounce.
  */
-GtkWidget  *venom_search_bar_new         (void);
-const char *venom_search_bar_get_text    (VenomSearchBar *bar);
-void        venom_search_bar_clear       (VenomSearchBar *bar);
-void        venom_search_bar_grab_focus  (VenomSearchBar *bar);
+GtkWidget  *vaxp_search_bar_new         (void);
+const char *vaxp_search_bar_get_text    (VaxpSearchBar *bar);
+void        vaxp_search_bar_clear       (VaxpSearchBar *bar);
+void        vaxp_search_bar_grab_focus  (VaxpSearchBar *bar);
 
 G_END_DECLS

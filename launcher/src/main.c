@@ -17,11 +17,11 @@ on_activate (GtkApplication *app, gpointer user_data)
         if (gtk_widget_get_visible (win)) {
             gtk_widget_hide (win);
         } else {
-            venom_launcher_window_show_launcher (VENOM_LAUNCHER_WINDOW (win));
+            vaxp_launcher_window_show_launcher (VAXP_LAUNCHER_WINDOW (win));
         }
     } else {
-        GtkWidget *win = venom_launcher_window_new (app);
-        venom_launcher_window_show_launcher (VENOM_LAUNCHER_WINDOW (win));
+        GtkWidget *win = vaxp_launcher_window_new (app);
+        vaxp_launcher_window_show_launcher (VAXP_LAUNCHER_WINDOW (win));
     }
 }
 
@@ -35,7 +35,7 @@ main (int argc, char *argv[])
     gdk_set_allowed_backends ("wayland,x11");
 
     GtkApplication *app = gtk_application_new (
-        "org.venom.Launcher",
+        "org.vaxp.Launcher",
         G_APPLICATION_DEFAULT_FLAGS);
 
     g_signal_connect (app, "activate", G_CALLBACK (on_activate), NULL);

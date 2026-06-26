@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     // تهيئة GTK
     gtk_init(&argc, &argv);
 
-    g_print("🎨 Starting venom_gui (OSD + Notify)\n");
+    g_print("🎨 Starting vaxp_gui (OSD + Notify)\n");
 
     // Load configuration
     config_init();

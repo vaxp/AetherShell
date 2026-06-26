@@ -8,7 +8,7 @@
 #define LOGIN1_IFACE "org.freedesktop.login1.Manager"
 
 // إيقاف التشغيل
-void venom_power_off(void) {
+void vaxp_power_off(void) {
     GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (!bus) return;
     g_dbus_connection_call_sync(bus, LOGIN1_BUS, LOGIN1_PATH, LOGIN1_IFACE,
@@ -19,7 +19,7 @@ void venom_power_off(void) {
 }
 
 // إعادة التشغيل
-void venom_reboot(void) {
+void vaxp_reboot(void) {
     GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (!bus) return;
     g_dbus_connection_call_sync(bus, LOGIN1_BUS, LOGIN1_PATH, LOGIN1_IFACE,
@@ -29,7 +29,7 @@ void venom_reboot(void) {
     g_object_unref(bus);
 }
 
-void venom_sleep(void) {
+void vaxp_sleep(void) {
     GDBusConnection *bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, NULL);
     if (!bus) return;
     g_dbus_connection_call_sync(bus, LOGIN1_BUS, LOGIN1_PATH, LOGIN1_IFACE,
@@ -39,7 +39,7 @@ void venom_sleep(void) {
     g_object_unref(bus);
 }
 
-void venom_logout(void) {
+void vaxp_logout(void) {
     char *session_id = getenv("XDG_SESSION_ID");
     if (!session_id) return;
 

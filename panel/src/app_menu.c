@@ -98,13 +98,13 @@ static void on_menu_item_clicked(GtkButton *btn, gpointer user_data) {
     
     // Perform actions
     if (g_strcmp0(action, "sleep") == 0) {
-        venom_sleep();
+        vaxp_sleep();
     } else if (g_strcmp0(action, "restart") == 0) {
-        venom_reboot();
+        vaxp_reboot();
     } else if (g_strcmp0(action, "shutdown") == 0) {
-        venom_power_off();
+        vaxp_power_off();
     } else if (g_strcmp0(action, "logout") == 0) {
-        venom_logout();
+        vaxp_logout();
     } else if (g_strcmp0(action, "lock") == 0) {
         GError *error = NULL;
         if (!g_spawn_command_line_async("aetherlock", &error)) {

@@ -12,17 +12,17 @@
 #include "auth_ui.h"
 
 // ------------------------------------------------------------------------------------------------
-// VenomAgent Class Definition (Polkit)
+// VaxpAgent Class Definition (Polkit)
 // ------------------------------------------------------------------------------------------------
 
-#define VENOM_TYPE_AGENT (venom_agent_get_type())
-G_DECLARE_FINAL_TYPE(VenomAgent, venom_agent, VENOM, AGENT, PolkitAgentListener)
+#define VAXP_TYPE_AGENT (vaxp_agent_get_type())
+G_DECLARE_FINAL_TYPE(VaxpAgent, vaxp_agent, VAXP, AGENT, PolkitAgentListener)
 
-struct _VenomAgent {
+struct _VaxpAgent {
     PolkitAgentListener parent_instance;
 };
 
-G_DEFINE_TYPE(VenomAgent, venom_agent, POLKIT_AGENT_TYPE_LISTENER)
+G_DEFINE_TYPE(VaxpAgent, vaxp_agent, POLKIT_AGENT_TYPE_LISTENER)
 
 static void secure_clear(void *ptr, size_t len) {
     volatile unsigned char *p = ptr;
@@ -42,7 +42,7 @@ static void secure_free_password(gpointer data) {
 
 static gpointer registration_handle = NULL;
 
-static void venom_agent_init(VenomAgent *agent) {
+static void vaxp_agent_init(VaxpAgent *agent) {
     (void)agent;
 }
 
@@ -88,7 +88,7 @@ static void on_show_info(PolkitAgentSession *session,
     (void)text;
 }
 
-static void venom_agent_initiate_authentication_real(PolkitAgentListener  *listener,
+static void vaxp_agent_initiate_authentication_real(PolkitAgentListener  *listener,
                                                      const gchar          *action_id,
                                                      const gchar          *message,
                                                      const gchar          *icon_name,
@@ -102,10 +102,10 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
     (void)icon_name;
     (void)details;
 
-    VenomAgent *agent = VENOM_AGENT(listener);
+    VaxpAgent *agent = VAXP_AGENT(listener);
     
     if (identities == NULL) {
-        g_task_report_new_error(G_OBJECT(agent), callback, user_data, venom_agent_initiate_authentication_real,
+        g_task_report_new_error(G_OBJECT(agent), callback, user_data, vaxp_agent_initiate_authentication_real,
                                 POLKIT_ERROR, POLKIT_ERROR_FAILED, "No identities");
         return;
     }
@@ -125,7 +125,7 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
 
     char *password = calloc(1, 512);
     if (!password) {
-        g_task_report_new_error(G_OBJECT(agent), callback, user_data, venom_agent_initiate_authentication_real,
+        g_task_report_new_error(G_OBJECT(agent), callback, user_data, vaxp_agent_initiate_authentication_real,
                                 POLKIT_ERROR, POLKIT_ERROR_FAILED, "Out of memory");
         return;
     }
@@ -139,7 +139,7 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
 
     if (ui_result != UI_RESULT_SUCCESS) {
         secure_free_password(password);
-        g_task_report_new_error(G_OBJECT(agent), callback, user_data, venom_agent_initiate_authentication_real,
+        g_task_report_new_error(G_OBJECT(agent), callback, user_data, vaxp_agent_initiate_authentication_real,
                                 POLKIT_ERROR, POLKIT_ERROR_CANCELLED, "Cancelled");
         return;
     }
@@ -147,7 +147,7 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
     PolkitAgentSession *session = polkit_agent_session_new(identity, cookie);
     if (!session) {
         secure_free_password(password);
-        g_task_report_new_error(G_OBJECT(agent), callback, user_data, venom_agent_initiate_authentication_real,
+        g_task_report_new_error(G_OBJECT(agent), callback, user_data, vaxp_agent_initiate_authentication_real,
                                 POLKIT_ERROR, POLKIT_ERROR_FAILED, "Failed to create Polkit session");
         return;
     }
@@ -164,18 +164,18 @@ static void venom_agent_initiate_authentication_real(PolkitAgentListener  *liste
     polkit_agent_session_initiate(session);
 }
 
-static gboolean venom_agent_initiate_authentication_finish_real(PolkitAgentListener  *listener,
+static gboolean vaxp_agent_initiate_authentication_finish_real(PolkitAgentListener  *listener,
                                                                 GAsyncResult         *res,
                                                                 GError              **error) {
     (void)listener;
     return g_task_propagate_boolean(G_TASK(res), error);
 }
 
-static void venom_agent_class_init(VenomAgentClass *klass) {
+static void vaxp_agent_class_init(VaxpAgentClass *klass) {
     PolkitAgentListenerClass *listener_class = POLKIT_AGENT_LISTENER_CLASS(klass);
     
-    listener_class->initiate_authentication = venom_agent_initiate_authentication_real;
-    listener_class->initiate_authentication_finish = venom_agent_initiate_authentication_finish_real;
+    listener_class->initiate_authentication = vaxp_agent_initiate_authentication_real;
+    listener_class->initiate_authentication_finish = vaxp_agent_initiate_authentication_finish_real;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Create Polkit agent
-    VenomAgent *agent = g_object_new(VENOM_TYPE_AGENT, NULL);
+    VaxpAgent *agent = g_object_new(VAXP_TYPE_AGENT, NULL);
     if (!agent) {
         fprintf(stderr, "Failed to create Polkit agent\n");
         auth_ui_cleanup();
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    fprintf(stdout, "Venom Auth started - Polkit agent active\n");
+    fprintf(stdout, "Vaxp Auth started - Polkit agent active\n");
     
     loop = g_main_loop_new(NULL, FALSE);
     if (!loop) {

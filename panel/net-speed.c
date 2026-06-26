@@ -329,7 +329,7 @@ AetherPanelPluginAPIv3 *aether_panel_plugin_init_v3(void)
         /* ── Identity ─────────────────────────────────────────────── */
         .name        = "Network Speed",
         .description = "Displays animated network RX/TX graph and speeds.",
-        .author      = "Venom",
+        .author      = "Vaxp",
         .version     = "3.0.0",
         .icon_name   = "network-transmit-receive-symbolic",
 

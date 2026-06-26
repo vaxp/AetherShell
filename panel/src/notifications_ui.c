@@ -1,6 +1,6 @@
 #include <gtk/gtk.h>
 #include <gtk-layer-shell.h>
-#include "venom_notifications.h"
+#include "vaxp_notifications.h"
 #include "resource_paths.h"
 #include "notifications_ui.h"
 #include "window_backend.h"
@@ -31,18 +31,18 @@ static void on_dnd_state_changed(gboolean enabled, gpointer user_data) {
 }
 
 static gboolean on_dnd_switch_activated(GtkWidget *widget, gboolean state, gpointer user_data) {
-    venom_notifications_set_dnd(state);
+    vaxp_notifications_set_dnd(state);
     return FALSE;
 }
 
 static void on_clear_history_clicked(GtkButton *btn, gpointer user_data) {
-    venom_notifications_clear_history();
+    vaxp_notifications_clear_history();
 }
 
 static gboolean on_history_card_clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
     if (event->type == GDK_BUTTON_PRESS && event->button == 1) {
         guint32 id = GPOINTER_TO_UINT(user_data);
-        venom_notifications_invoke_default_action(id);
+        vaxp_notifications_invoke_default_action(id);
         return TRUE;
     }
     return FALSE;
@@ -325,7 +325,7 @@ GtkWidget* init_notifications_ui(void) {
     gtk_widget_show_all(main_box);
     gtk_widget_hide(popover);
 
-    venom_notifications_init(on_notifications_updated, on_dnd_state_changed, NULL);
+    vaxp_notifications_init(on_notifications_updated, on_dnd_state_changed, NULL);
 
     return popover;
 }

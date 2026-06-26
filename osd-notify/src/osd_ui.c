@@ -111,7 +111,7 @@ void osd_ui_init(OsdUi *ui, GCallback draw_cb, gpointer draw_data) {
     ui->use_layer_shell = is_wayland_session() && gtk_layer_is_supported();
     if (ui->use_layer_shell) {
         gtk_layer_init_for_window(GTK_WINDOW(ui->window));
-        gtk_layer_set_namespace(GTK_WINDOW(ui->window), "venom-osd");
+        gtk_layer_set_namespace(GTK_WINDOW(ui->window), "vaxp-osd");
         gtk_layer_set_layer(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_LAYER_OVERLAY);
         gtk_layer_set_keyboard_mode(GTK_WINDOW(ui->window), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
         gtk_layer_set_exclusive_zone(GTK_WINDOW(ui->window), 0);

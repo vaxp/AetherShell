@@ -1,5 +1,5 @@
 #include "logind.h"
-#include "venom_power.h"
+#include "vaxp_power.h"
 #include "dbus_service.h"
 #include "idle.h"
 #include <stdio.h>
@@ -59,7 +59,7 @@ void logind_on_prepare_for_sleep(GDBusConnection *connection,
     g_variant_get(parameters, "(b)", &start_sleeping);
 
     if (start_sleeping) {
-        printf("💤 System is going to sleep! Launching Venom Locker...\n");
+        printf("💤 System is going to sleep! Launching Vaxp Locker...\n");
         int ret = system(LOCK_SCREEN_CMD);
         if (ret == -1) {
             fprintf(stderr, "Failed to launch lock screen\n");

@@ -151,7 +151,7 @@ void notify_ui_init(void) {
     char *btn_htext_str = gdk_rgba_to_string(&g_config.notify_btn_hover_text);
 
     gchar *css = g_strdup_printf(
-        "window.venom-notify {"
+        "window.vaxp-notify {"
         "   background-color: %s;"
         "   background: %s;"
         "   border: 1.5px solid %s;"
@@ -187,7 +187,7 @@ void notify_ui_init(void) {
     g_free(css);
 }
 
-void notify_ui_setup_window(VenomNotification *notification,
+void notify_ui_setup_window(VaxpNotification *notification,
                             const char *summary,
                             const char *body,
                             const char *icon,
@@ -212,7 +212,7 @@ void notify_ui_setup_window(VenomNotification *notification,
 
     if (use_layer_shell) {
         gtk_layer_init_for_window(GTK_WINDOW(notification->win));
-        gtk_layer_set_namespace(GTK_WINDOW(notification->win), "venom-notify");
+        gtk_layer_set_namespace(GTK_WINDOW(notification->win), "vaxp-notify");
         gtk_layer_set_layer(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_LAYER_TOP);
         gtk_layer_set_keyboard_mode(GTK_WINDOW(notification->win), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
         
@@ -239,7 +239,7 @@ void notify_ui_setup_window(VenomNotification *notification,
 
     // ربط CSS بالنافذة
     GtkStyleContext *context = gtk_widget_get_style_context(notification->win);
-    gtk_style_context_add_class(context, "venom-notify");
+    gtk_style_context_add_class(context, "vaxp-notify");
 
     // تخطيط العناصر
     GtkWidget *panel_surface = gtk_event_box_new();
@@ -367,7 +367,7 @@ void notify_ui_setup_window(VenomNotification *notification,
     gtk_window_resize(GTK_WINDOW(notification->win), NOTIFY_WIDTH, 1);
 }
 
-void notify_ui_update_content(VenomNotification *notification,
+void notify_ui_update_content(VaxpNotification *notification,
                               const char *summary,
                               const char *body,
                               const char *icon,
@@ -399,7 +399,7 @@ void notify_ui_update_content(VenomNotification *notification,
     gtk_window_resize(GTK_WINDOW(notification->win), NOTIFY_WIDTH, 1);
 }
 
-void notify_ui_destroy(VenomNotification *notification) {
+void notify_ui_destroy(VaxpNotification *notification) {
     if (!notification || !notification->win) {
         return;
     }
@@ -427,7 +427,7 @@ void notify_ui_reposition(GList *active_notifications, gboolean use_layer_shell)
     if (!is_right && !is_left && !is_center) is_right = TRUE;
 
     for (GList *l = active_notifications; l != NULL; l = l->next) {
-        VenomNotification *n = (VenomNotification *)l->data;
+        VaxpNotification *n = (VaxpNotification *)l->data;
         gint width = NOTIFY_WIDTH;
         gint height = 0;
         gtk_window_get_size(GTK_WINDOW(n->win), &width, &height);

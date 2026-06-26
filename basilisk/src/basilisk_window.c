@@ -1,5 +1,5 @@
 /*
- * 🔦 Venom Basilisk - basilisk Window (Cairo - Rewrite)
+ * 🔦 Vaxp Basilisk - basilisk Window (Cairo - Rewrite)
  * النافذة شفافة تماماً، العناصر مرسومة فقط بـ Cairo
  */
 

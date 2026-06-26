@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_SOUND_H
-#define VENOM_GUI_OSD_SOUND_H
+#ifndef VAXP_GUI_OSD_SOUND_H
+#define VAXP_GUI_OSD_SOUND_H
 
 #include <glib.h>
 

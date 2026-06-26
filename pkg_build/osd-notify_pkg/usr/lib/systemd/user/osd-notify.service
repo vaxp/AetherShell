@@ -1,6 +1,6 @@
 [Unit]
 Description=Vaxp OSD and Notifications Daemon
-After=venom-core.service
+After=vaxp-core.service
 
 [Service]
 ExecStart=/usr/local/bin/osd-notify

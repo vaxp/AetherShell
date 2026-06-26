@@ -13,7 +13,7 @@
  * Private struct
  * ------------------------------------------------------------------------- */
 
-struct _VenomLauncherWindow {
+struct _VaxpLauncherWindow {
     GtkApplicationWindow  parent_instance;
 
     GPtrArray    *apps;
@@ -32,7 +32,7 @@ struct _VenomLauncherWindow {
     guint         reload_source_id;
 };
 
-G_DEFINE_TYPE (VenomLauncherWindow, venom_launcher_window,
+G_DEFINE_TYPE (VaxpLauncherWindow, vaxp_launcher_window,
                GTK_TYPE_APPLICATION_WINDOW)
 
 /* -------------------------------------------------------------------------
@@ -86,7 +86,7 @@ setup_transparency (GtkWidget *widget)
  * ------------------------------------------------------------------------- */
 
 static void
-load_wallpaper (VenomLauncherWindow *self)
+load_wallpaper (VaxpLauncherWindow *self)
 {
     const char *config_dir = g_get_user_config_dir ();
     char *wallpaper_file_path = g_build_filename (config_dir, "vaxp", "desktop", "background", NULL);
@@ -136,7 +136,7 @@ static gboolean
 on_window_draw (GtkWidget *widget, cairo_t *cr, gpointer user_data)
 {
     (void) user_data;
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (widget);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (widget);
 
     GtkAllocation alloc;
     const double radius = 24.0;
@@ -220,31 +220,31 @@ static gboolean
 on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
     (void) user_data;
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (widget);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (widget);
 
     if (event->keyval == GDK_KEY_Escape) {
-        venom_search_bar_clear (VENOM_SEARCH_BAR (self->search_bar));
+        vaxp_search_bar_clear (VAXP_SEARCH_BAR (self->search_bar));
         gtk_widget_hide (widget);
         return TRUE;
     }
 
     /* Page Navigation */
     if (event->keyval == GDK_KEY_Page_Up) {
-        venom_app_grid_go_prev_page (VENOM_APP_GRID (self->app_grid));
+        vaxp_app_grid_go_prev_page (VAXP_APP_GRID (self->app_grid));
         return TRUE;
     } else if (event->keyval == GDK_KEY_Page_Down) {
-        venom_app_grid_go_next_page (VENOM_APP_GRID (self->app_grid));
+        vaxp_app_grid_go_next_page (VAXP_APP_GRID (self->app_grid));
         return TRUE;
     }
 
     /* Page Navigation via Arrow Keys when search is empty */
-    const char *search_text = venom_search_bar_get_text (VENOM_SEARCH_BAR (self->search_bar));
+    const char *search_text = vaxp_search_bar_get_text (VAXP_SEARCH_BAR (self->search_bar));
     if (!search_text || search_text[0] == '\0') {
         if (event->keyval == GDK_KEY_Left) {
-            venom_app_grid_go_prev_page (VENOM_APP_GRID (self->app_grid));
+            vaxp_app_grid_go_prev_page (VAXP_APP_GRID (self->app_grid));
             return TRUE;
         } else if (event->keyval == GDK_KEY_Right) {
-            venom_app_grid_go_next_page (VENOM_APP_GRID (self->app_grid));
+            vaxp_app_grid_go_next_page (VAXP_APP_GRID (self->app_grid));
             return TRUE;
         }
     }
@@ -265,7 +265,7 @@ static gboolean
 on_scroll (GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 {
     (void) user_data;
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (widget);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (widget);
     
     /* Accumulate delta for smooth scrolling */
     static double accum_y = 0.0;
@@ -284,11 +284,11 @@ on_scroll (GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
     }
 
     if (event->direction == GDK_SCROLL_UP) {
-        venom_app_grid_go_prev_page (VENOM_APP_GRID (self->app_grid));
+        vaxp_app_grid_go_prev_page (VAXP_APP_GRID (self->app_grid));
         last_page_time = event->time;
         return TRUE;
     } else if (event->direction == GDK_SCROLL_DOWN) {
-        venom_app_grid_go_next_page (VENOM_APP_GRID (self->app_grid));
+        vaxp_app_grid_go_next_page (VAXP_APP_GRID (self->app_grid));
         last_page_time = event->time;
         return TRUE;
     } else if (event->direction == GDK_SCROLL_SMOOTH) {
@@ -299,12 +299,12 @@ on_scroll (GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
         }
 
         if (accum_y <= -1.0) {
-            venom_app_grid_go_prev_page (VENOM_APP_GRID (self->app_grid));
+            vaxp_app_grid_go_prev_page (VAXP_APP_GRID (self->app_grid));
             accum_y = 0.0;
             last_page_time = event->time;
             return TRUE;
         } else if (accum_y >= 1.0) {
-            venom_app_grid_go_next_page (VENOM_APP_GRID (self->app_grid));
+            vaxp_app_grid_go_next_page (VAXP_APP_GRID (self->app_grid));
             accum_y = 0.0;
             last_page_time = event->time;
             return TRUE;
@@ -321,9 +321,9 @@ on_scroll (GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 static void
 on_search_changed (GtkWidget *search, gpointer data)
 {
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (data);
-    const char *query = venom_search_bar_get_text (VENOM_SEARCH_BAR (search));
-    venom_app_grid_set_filter (VENOM_APP_GRID (self->app_grid), query);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (data);
+    const char *query = vaxp_search_bar_get_text (VAXP_SEARCH_BAR (search));
+    vaxp_app_grid_set_filter (VAXP_APP_GRID (self->app_grid), query);
 }
 
 
@@ -335,7 +335,7 @@ on_search_changed (GtkWidget *search, gpointer data)
 static gboolean
 reload_apps_idle_cb (gpointer data)
 {
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (data);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (data);
     
     self->reload_source_id = 0;
 
@@ -346,10 +346,10 @@ reload_apps_idle_cb (gpointer data)
         
     self->apps = new_apps;
     
-    venom_app_grid_set_apps (VENOM_APP_GRID (self->app_grid), self->apps);
+    vaxp_app_grid_set_apps (VAXP_APP_GRID (self->app_grid), self->apps);
     
-    const char *query = venom_search_bar_get_text (VENOM_SEARCH_BAR (self->search_bar));
-    venom_app_grid_set_filter (VENOM_APP_GRID (self->app_grid), query);
+    const char *query = vaxp_search_bar_get_text (VAXP_SEARCH_BAR (self->search_bar));
+    vaxp_app_grid_set_filter (VAXP_APP_GRID (self->app_grid), query);
     
     return G_SOURCE_REMOVE;
 }
@@ -363,7 +363,7 @@ on_desktop_dir_changed (GFileMonitor *monitor, GFile *file, GFile *other_file,
     (void) other_file;
     (void) event_type;
     
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (user_data);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (user_data);
     
     if (self->reload_source_id != 0) {
         g_source_remove (self->reload_source_id);
@@ -373,7 +373,7 @@ on_desktop_dir_changed (GFileMonitor *monitor, GFile *file, GFile *other_file,
 }
 
 static void
-setup_directory_monitors (VenomLauncherWindow *self)
+setup_directory_monitors (VaxpLauncherWindow *self)
 {
     const char *dirs[] = {
         "/usr/share/applications",
@@ -407,9 +407,9 @@ setup_directory_monitors (VenomLauncherWindow *self)
 }
 
 static void
-venom_launcher_window_finalize (GObject *obj)
+vaxp_launcher_window_finalize (GObject *obj)
 {
-    VenomLauncherWindow *self = VENOM_LAUNCHER_WINDOW (obj);
+    VaxpLauncherWindow *self = VAXP_LAUNCHER_WINDOW (obj);
 
     if (self->reload_source_id != 0) {
         g_source_remove (self->reload_source_id);
@@ -430,14 +430,14 @@ venom_launcher_window_finalize (GObject *obj)
     if (self->wallpaper_surface)
         cairo_surface_destroy (self->wallpaper_surface);
     icon_loader_destroy ();
-    G_OBJECT_CLASS (venom_launcher_window_parent_class)->finalize (obj);
+    G_OBJECT_CLASS (vaxp_launcher_window_parent_class)->finalize (obj);
 }
 
 static void
-venom_launcher_window_class_init (VenomLauncherWindowClass *klass)
+vaxp_launcher_window_class_init (VaxpLauncherWindowClass *klass)
 {
     GObjectClass *obj_class = G_OBJECT_CLASS (klass);
-    obj_class->finalize = venom_launcher_window_finalize;
+    obj_class->finalize = vaxp_launcher_window_finalize;
 }
 
 static void
@@ -465,7 +465,7 @@ set_layer_shell_monitor (GtkWindow *win)
 }
 
 static void
-venom_launcher_window_init (VenomLauncherWindow *self)
+vaxp_launcher_window_init (VaxpLauncherWindow *self)
 {
     self->wallpaper_path = NULL;
     self->wallpaper_pixbuf = NULL;
@@ -534,7 +534,7 @@ venom_launcher_window_init (VenomLauncherWindow *self)
     gtk_container_add (GTK_CONTAINER (self->root_overlay), vbox);
 
     /* ── Search Bar ────────────────────────────────────────────────── */
-    self->search_bar = venom_search_bar_new ();
+    self->search_bar = vaxp_search_bar_new ();
     gtk_widget_set_halign (self->search_bar, GTK_ALIGN_CENTER);
     gtk_box_pack_start (GTK_BOX (vbox), self->search_bar, FALSE, FALSE, 0);
 
@@ -542,7 +542,7 @@ venom_launcher_window_init (VenomLauncherWindow *self)
     self->apps = desktop_reader_load_apps ();
 
     /* ── App Grid ──────────────────────────────────────────────────── */
-    self->app_grid = venom_app_grid_new (self->apps);
+    self->app_grid = vaxp_app_grid_new (self->apps);
     gtk_box_pack_start (GTK_BOX (vbox), self->app_grid, TRUE, TRUE, 0);
 
     /* Connect signals */
@@ -565,10 +565,10 @@ venom_launcher_window_init (VenomLauncherWindow *self)
  * ------------------------------------------------------------------------- */
 
 GtkWidget *
-venom_launcher_window_new (GtkApplication *app)
+vaxp_launcher_window_new (GtkApplication *app)
 {
-    VenomLauncherWindow *win = g_object_new (
-        VENOM_TYPE_LAUNCHER_WINDOW,
+    VaxpLauncherWindow *win = g_object_new (
+        VAXP_TYPE_LAUNCHER_WINDOW,
         "application", app,
         NULL);
 
@@ -576,12 +576,12 @@ venom_launcher_window_new (GtkApplication *app)
 }
 
 void
-venom_launcher_window_show_launcher (VenomLauncherWindow *win)
+vaxp_launcher_window_show_launcher (VaxpLauncherWindow *win)
 {
-    g_return_if_fail (VENOM_IS_LAUNCHER_WINDOW (win));
+    g_return_if_fail (VAXP_IS_LAUNCHER_WINDOW (win));
 
-    venom_search_bar_clear (VENOM_SEARCH_BAR (win->search_bar));
-    venom_app_grid_set_filter (VENOM_APP_GRID (win->app_grid), NULL);
+    vaxp_search_bar_clear (VAXP_SEARCH_BAR (win->search_bar));
+    vaxp_app_grid_set_filter (VAXP_APP_GRID (win->app_grid), NULL);
 
     load_wallpaper (win);
     gtk_widget_queue_draw (GTK_WIDGET (win));
@@ -589,14 +589,14 @@ venom_launcher_window_show_launcher (VenomLauncherWindow *win)
     gtk_widget_show_all (GTK_WIDGET (win));
     gtk_window_present  (GTK_WINDOW (win));
 
-    venom_search_bar_grab_focus (VENOM_SEARCH_BAR (win->search_bar));
+    vaxp_search_bar_grab_focus (VAXP_SEARCH_BAR (win->search_bar));
 }
 
 void
-venom_launcher_window_push_overlay (VenomLauncherWindow *win,
+vaxp_launcher_window_push_overlay (VaxpLauncherWindow *win,
                                     GtkWidget           *widget)
 {
-    g_return_if_fail (VENOM_IS_LAUNCHER_WINDOW (win));
+    g_return_if_fail (VAXP_IS_LAUNCHER_WINDOW (win));
     g_return_if_fail (GTK_IS_WIDGET (widget));
 
     gtk_widget_set_halign (widget, GTK_ALIGN_CENTER);
@@ -607,10 +607,10 @@ venom_launcher_window_push_overlay (VenomLauncherWindow *win,
 }
 
 void
-venom_launcher_window_pop_overlay (VenomLauncherWindow *win,
+vaxp_launcher_window_pop_overlay (VaxpLauncherWindow *win,
                                    GtkWidget           *widget)
 {
-    g_return_if_fail (VENOM_IS_LAUNCHER_WINDOW (win));
+    g_return_if_fail (VAXP_IS_LAUNCHER_WINDOW (win));
     g_return_if_fail (GTK_IS_WIDGET (widget));
 
     gtk_widget_destroy (widget);

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================
-# Venom Auth Agent - Installer for Custom Distro
+# Vaxp Auth Agent - Installer for Custom Distro
 # ==============================================
 
 set -e
@@ -26,7 +26,7 @@ fi
 USER_ID=$(id -u "$REAL_USER")
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   🛡️ Venom Auth Installer (Polkit Agent)    ║${NC}"
+echo -e "${BLUE}║   🛡️ Vaxp Auth Installer (Polkit Agent)    ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -51,7 +51,7 @@ mkdir -p /usr/lib/systemd/user/
 # إنشاء ملف الخدمة مباشرة هنا لضمان صحة المحتوى
 cat <<EOF > /usr/lib/systemd/user/${SERVICE_NAME}
 [Unit]
-Description=Venom Authentication Agent
+Description=Vaxp Authentication Agent
 Documentation=https://github.com/vaxp/auth
 PartOf=graphical-session.target
 After=graphical-session.target
@@ -76,6 +76,6 @@ su - "$REAL_USER" -c "export XDG_RUNTIME_DIR=/run/user/$USER_ID; systemctl --use
 su - "$REAL_USER" -c "export XDG_RUNTIME_DIR=/run/user/$USER_ID; systemctl --user restart ${SERVICE_NAME}"
 
 echo ""
-echo -e "${GREEN}✅ Venom Auth installed successfully!${NC}"
+echo -e "${GREEN}✅ Vaxp Auth installed successfully!${NC}"
 echo "   Polkit Agent:  Registered via Code"
 echo "   Service:       Active"

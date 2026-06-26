@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_LOGIC_DRAW_H
-#define VENOM_GUI_OSD_LOGIC_DRAW_H
+#ifndef VAXP_GUI_OSD_LOGIC_DRAW_H
+#define VAXP_GUI_OSD_LOGIC_DRAW_H
 
 #include <gtk/gtk.h>
 

@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_PROTOCOLS_X11_H
-#define VENOM_GUI_OSD_PROTOCOLS_X11_H
+#ifndef VAXP_GUI_OSD_PROTOCOLS_X11_H
+#define VAXP_GUI_OSD_PROTOCOLS_X11_H
 
 #include "osd_protocols.h"
 

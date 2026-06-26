@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_LOGIC_H
-#define VENOM_GUI_OSD_LOGIC_H
+#ifndef VAXP_GUI_OSD_LOGIC_H
+#define VAXP_GUI_OSD_LOGIC_H
 
 #include <gtk/gtk.h>
 #include "osd_logic_state.h"

@@ -1,9 +1,9 @@
 /*
  * ═══════════════════════════════════════════════════════════════════════════
- * 🔍 Venom Basilisk - Main Entry Point & D-Bus Server
+ * 🔍 Vaxp Basilisk - Main Entry Point & D-Bus Server
  * ═══════════════════════════════════════════════════════════════════════════
- * Venom Basilisk application launcher for Venom Desktop
- * Based on venom_clipboard structure
+ * Vaxp Basilisk application launcher for Vaxp Desktop
+ * Based on vaxp_clipboard structure
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -16,11 +16,11 @@
 BasiliskState *state = NULL;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// D-Bus Interface (like venom_clipboard)
+// D-Bus Interface (like vaxp_clipboard)
 // ═══════════════════════════════════════════════════════════════════════════
 
 static const gchar introspection_xml[] =
-    "<node><interface name='org.venom.Basilisk'>"
+    "<node><interface name='org.vaxp.Basilisk'>"
     "<method name='Show'/><method name='Hide'/><method name='Toggle'/>"
     "<method name='Search'><arg type='s' name='query' direction='in'/></method>"
     "</interface></node>";
@@ -91,7 +91,7 @@ static void on_bus_acquired(GDBusConnection *conn, const gchar *name, gpointer d
 
 int main(int argc, char *argv[]) {
     g_print("🚀 ════════════════════════════════════════════════════════════\n");
-    g_print("🚀 Venom Basilisk - basilisk Search\n");
+    g_print("🚀 Vaxp Basilisk - basilisk Search\n");
     g_print("🚀 ════════════════════════════════════════════════════════════\n");
     
     gtk_init(&argc, &argv);

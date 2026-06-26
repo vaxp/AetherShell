@@ -6,24 +6,24 @@
 
 G_BEGIN_DECLS
 
-#define VENOM_TYPE_APP_GRID (venom_app_grid_get_type ())
-G_DECLARE_FINAL_TYPE (VenomAppGrid, venom_app_grid, VENOM, APP_GRID, GtkBox)
+#define VAXP_TYPE_APP_GRID (vaxp_app_grid_get_type ())
+G_DECLARE_FINAL_TYPE (VaxpAppGrid, vaxp_app_grid, VAXP, APP_GRID, GtkBox)
 
 /**
- * VenomAppGrid - Paginated icon grid + pagination dots.
+ * VaxpAppGrid - Paginated icon grid + pagination dots.
  * Lays out AppEntry list in pages of APPS_PER_PAGE items.
  */
 #define APPS_PER_PAGE   25
 #define GRID_COLUMNS     5
 
-GtkWidget *venom_app_grid_new          (GPtrArray  *apps);
-void       venom_app_grid_set_filter   (VenomAppGrid *grid,
+GtkWidget *vaxp_app_grid_new          (GPtrArray  *apps);
+void       vaxp_app_grid_set_filter   (VaxpAppGrid *grid,
                                         const char   *query);
-void       venom_app_grid_go_next_page (VenomAppGrid *grid);
-void       venom_app_grid_go_prev_page (VenomAppGrid *grid);
-void       venom_app_grid_remove_app   (VenomAppGrid *grid,
+void       vaxp_app_grid_go_next_page (VaxpAppGrid *grid);
+void       vaxp_app_grid_go_prev_page (VaxpAppGrid *grid);
+void       vaxp_app_grid_remove_app   (VaxpAppGrid *grid,
                                         AppEntry     *entry);
-void       venom_app_grid_set_apps     (VenomAppGrid *grid,
+void       vaxp_app_grid_set_apps     (VaxpAppGrid *grid,
                                         GPtrArray    *apps);
 
 G_END_DECLS

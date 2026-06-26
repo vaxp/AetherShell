@@ -1,5 +1,5 @@
 /* ============================================================
-   Venom Launcher — GTK3 Stylesheet
+   Vaxp Launcher — GTK3 Stylesheet
    Design: macOS Launchpad — dark glassmorphism
    ============================================================ */
 
@@ -19,7 +19,7 @@
 }
 
 /* ── Search bar ─────────────────────────────────────────────── */
-#venom-search-entry,
+#vaxp-search-entry,
 .search-bar {
     background-color: rgba(255, 255, 255, 0.14);
     border: 1.5px solid rgba(255, 255, 255, 0.28);
@@ -34,13 +34,13 @@
         border-color 200ms ease;
 }
 
-#venom-search-entry:focus,
+#vaxp-search-entry:focus,
 .search-bar:focus {
     background-color: rgba(255, 255, 255, 0.20);
     border-color: rgba(255, 255, 255, 0.50);
 }
 
-#venom-search-entry placeholder {
+#vaxp-search-entry placeholder {
     color: rgba(255, 255, 255, 0.45);
 }
 

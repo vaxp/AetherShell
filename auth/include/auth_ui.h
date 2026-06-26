@@ -1,5 +1,5 @@
-#ifndef VENOM_AUTH_UI_H
-#define VENOM_AUTH_UI_H
+#ifndef VAXP_AUTH_UI_H
+#define VAXP_AUTH_UI_H
 
 #include "config.h"
 

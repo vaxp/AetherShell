@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_LOGIC_KEYBOARD_H
-#define VENOM_GUI_OSD_LOGIC_KEYBOARD_H
+#ifndef VAXP_GUI_OSD_LOGIC_KEYBOARD_H
+#define VAXP_GUI_OSD_LOGIC_KEYBOARD_H
 
 #include <json-glib/json-glib.h>
 #include "osd_protocols.h"

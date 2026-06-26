@@ -240,9 +240,9 @@ static void _on_search_clicked(GtkButton *btn, gpointer user_data)
     GError *err  = NULL;
     gchar  *argv[] = {
         "gdbus", "call", "--session",
-        "--dest",        "org.venom.Basilisk",
-        "--object-path", "/org/venom/Basilisk",
-        "--method",      "org.venom.Basilisk.Toggle",
+        "--dest",        "org.vaxp.Basilisk",
+        "--object-path", "/org/vaxp/Basilisk",
+        "--method",      "org.vaxp.Basilisk.Toggle",
         NULL
     };
     g_spawn_async(NULL, argv, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &err);

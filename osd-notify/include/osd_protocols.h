@@ -1,5 +1,5 @@
-#ifndef VENOM_GUI_OSD_PROTOCOLS_H
-#define VENOM_GUI_OSD_PROTOCOLS_H
+#ifndef VAXP_GUI_OSD_PROTOCOLS_H
+#define VAXP_GUI_OSD_PROTOCOLS_H
 
 #include <glib.h>
 #include <json-glib/json-glib.h>

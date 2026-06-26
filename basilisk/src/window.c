@@ -1,6 +1,6 @@
 /*
  * ═══════════════════════════════════════════════════════════════════════════
- * 🖼️ Venom Basilisk - Window Module (macOS-style App Launcher)
+ * 🖼️ Vaxp Basilisk - Window Module (macOS-style App Launcher)
  * ═══════════════════════════════════════════════════════════════════════════
  */
 

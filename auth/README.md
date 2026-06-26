@@ -12,7 +12,7 @@ What it no longer does:
 - no system-bus policy file exposing an auth endpoint
 
 Current architecture:
-- [auth.c](/home/x/Desktop/WayfireDE/venom-auth/auth.c): Polkit agent lifecycle
-- [auth_ui.c](/home/x/Desktop/WayfireDE/venom-auth/auth_ui.c): local password dialog on Wayland/GTK
+- [auth.c](/home/x/Desktop/WayfireDE/vaxp-auth/auth.c): Polkit agent lifecycle
+- [auth_ui.c](/home/x/Desktop/WayfireDE/vaxp-auth/auth_ui.c): local password dialog on Wayland/GTK
 
 This keeps the project limited to a single responsibility: desktop authentication prompts.

@@ -1696,7 +1696,7 @@ int main(int argc, char **argv) {
 	weather_init(&state);
 
 	// Setup Notifications
-	venom_notifications_init(on_notifications_updated, on_notifications_dnd, &state);
+	vaxp_notifications_init(on_notifications_updated, on_notifications_dnd, &state);
 
 	state.run_display = true;
 	while (state.run_display) {

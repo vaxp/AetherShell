@@ -1,6 +1,6 @@
 /*
  * ═══════════════════════════════════════════════════════════════════════════
- * 🔍 Venom Basilisk - Global Header
+ * 🔍 Vaxp Basilisk - Global Header
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -19,9 +19,9 @@
 #include <sys/stat.h>
 
 // D-Bus
-#define DBUS_NAME "org.venom.Basilisk"
-#define DBUS_PATH "/org/venom/Basilisk"
-#define DBUS_INTERFACE "org.venom.Basilisk"
+#define DBUS_NAME "org.vaxp.Basilisk"
+#define DBUS_PATH "/org/vaxp/Basilisk"
+#define DBUS_INTERFACE "org.vaxp.Basilisk"
 
 // Window dimensions
 #define WINDOW_WIDTH 650

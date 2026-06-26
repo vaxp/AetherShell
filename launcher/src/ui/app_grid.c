@@ -18,7 +18,7 @@ destroy_widget (gpointer widget, gpointer user_data)
  * Widget struct
  * ------------------------------------------------------------------------- */
 
-struct _VenomAppGrid {
+struct _VaxpAppGrid {
     GtkBox      parent_instance;
 
     GPtrArray  *all_apps;       /* full list, not owned */
@@ -36,14 +36,14 @@ struct _VenomAppGrid {
     GtkWidget  *dots_box;
 };
 
-G_DEFINE_TYPE (VenomAppGrid, venom_app_grid, GTK_TYPE_BOX)
+G_DEFINE_TYPE (VaxpAppGrid, vaxp_app_grid, GTK_TYPE_BOX)
 
 /* -------------------------------------------------------------------------
  * Helpers
  * ------------------------------------------------------------------------- */
 
 static void
-update_dots (VenomAppGrid *self)
+update_dots (VaxpAppGrid *self)
 {
     /* Remove all existing dot children */
     GList *children = gtk_container_get_children (GTK_CONTAINER (self->dots_box));
@@ -82,7 +82,7 @@ update_dots (VenomAppGrid *self)
 }
 
 static void
-populate_page (VenomAppGrid *self, GtkStackTransitionType transition)
+populate_page (VaxpAppGrid *self, GtkStackTransitionType transition)
 {
     /* Toggle active box */
     self->active_box = (self->active_box == 1) ? 2 : 1;
@@ -100,13 +100,13 @@ populate_page (VenomAppGrid *self, GtkStackTransitionType transition)
         if (curr) {
             GtkWidget *flow_child = GTK_WIDGET (curr->data);
             GtkWidget *icon = gtk_bin_get_child (GTK_BIN (flow_child));
-            if (icon && VENOM_IS_APP_ICON (icon)) {
-                venom_app_icon_set_entry (VENOM_APP_ICON (icon), entry);
+            if (icon && VAXP_IS_APP_ICON (icon)) {
+                vaxp_app_icon_set_entry (VAXP_APP_ICON (icon), entry);
             }
             gtk_widget_show (flow_child);
             curr = curr->next;
         } else {
-            GtkWidget *icon = venom_app_icon_new (entry);
+            GtkWidget *icon = vaxp_app_icon_new (entry);
             gtk_container_add (GTK_CONTAINER (target_box), icon);
             gtk_widget_show_all (icon);
         }
@@ -128,7 +128,7 @@ populate_page (VenomAppGrid *self, GtkStackTransitionType transition)
 }
 
 static void
-rebuild_filter (VenomAppGrid *self, const char *query)
+rebuild_filter (VaxpAppGrid *self, const char *query)
 {
     g_ptr_array_set_size (self->filtered_apps, 0);
 
@@ -162,7 +162,7 @@ static void
 on_prev_clicked (GtkButton *btn, gpointer data)
 {
     (void) btn;
-    VenomAppGrid *self = VENOM_APP_GRID (data);
+    VaxpAppGrid *self = VAXP_APP_GRID (data);
     if (self->current_page > 0) {
         self->current_page--;
         populate_page (self, GTK_STACK_TRANSITION_TYPE_SLIDE_RIGHT);
@@ -173,7 +173,7 @@ static void
 on_next_clicked (GtkButton *btn, gpointer data)
 {
     (void) btn;
-    VenomAppGrid *self = VENOM_APP_GRID (data);
+    VaxpAppGrid *self = VAXP_APP_GRID (data);
     if (self->current_page < self->total_pages - 1) {
         self->current_page++;
         populate_page (self, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT);
@@ -185,18 +185,18 @@ on_next_clicked (GtkButton *btn, gpointer data)
  * ------------------------------------------------------------------------- */
 
 static void
-venom_app_grid_finalize (GObject *obj)
+vaxp_app_grid_finalize (GObject *obj)
 {
-    VenomAppGrid *self = VENOM_APP_GRID (obj);
+    VaxpAppGrid *self = VAXP_APP_GRID (obj);
     g_ptr_array_unref (self->filtered_apps);
-    G_OBJECT_CLASS (venom_app_grid_parent_class)->finalize (obj);
+    G_OBJECT_CLASS (vaxp_app_grid_parent_class)->finalize (obj);
 }
 
 static void
-venom_app_grid_class_init (VenomAppGridClass *klass)
+vaxp_app_grid_class_init (VaxpAppGridClass *klass)
 {
     GObjectClass *obj_class = G_OBJECT_CLASS (klass);
-    obj_class->finalize = venom_app_grid_finalize;
+    obj_class->finalize = vaxp_app_grid_finalize;
 }
 
 static GtkWidget *
@@ -219,7 +219,7 @@ create_flow_box (void)
 }
 
 static void
-venom_app_grid_init (VenomAppGrid *self)
+vaxp_app_grid_init (VaxpAppGrid *self)
 {
     gtk_orientable_set_orientation (GTK_ORIENTABLE (self),
                                     GTK_ORIENTATION_VERTICAL);
@@ -269,37 +269,37 @@ venom_app_grid_init (VenomAppGrid *self)
  * ------------------------------------------------------------------------- */
 
 GtkWidget *
-venom_app_grid_new (GPtrArray *apps)
+vaxp_app_grid_new (GPtrArray *apps)
 {
-    VenomAppGrid *self = g_object_new (VENOM_TYPE_APP_GRID, NULL);
+    VaxpAppGrid *self = g_object_new (VAXP_TYPE_APP_GRID, NULL);
     self->all_apps = apps;
     rebuild_filter (self, NULL);
     return GTK_WIDGET (self);
 }
 
 void
-venom_app_grid_set_filter (VenomAppGrid *grid, const char *query)
+vaxp_app_grid_set_filter (VaxpAppGrid *grid, const char *query)
 {
-    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (VAXP_IS_APP_GRID (grid));
     rebuild_filter (grid, query);
 }
 
 void
-venom_app_grid_go_next_page (VenomAppGrid *grid)
+vaxp_app_grid_go_next_page (VaxpAppGrid *grid)
 {
-    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (VAXP_IS_APP_GRID (grid));
     on_next_clicked (NULL, grid);
 }
 
 void
-venom_app_grid_go_prev_page (VenomAppGrid *grid)
+vaxp_app_grid_go_prev_page (VaxpAppGrid *grid)
 {
-    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (VAXP_IS_APP_GRID (grid));
     on_prev_clicked (NULL, grid);
 }
 
 /**
- * venom_app_grid_remove_app:
+ * vaxp_app_grid_remove_app:
  * @grid:  the grid widget
  * @entry: the AppEntry to remove (matched by pointer)
  *
@@ -310,9 +310,9 @@ venom_app_grid_go_prev_page (VenomAppGrid *grid)
  * longer display icons that point to @entry.
  */
 void
-venom_app_grid_remove_app (VenomAppGrid *grid, AppEntry *entry)
+vaxp_app_grid_remove_app (VaxpAppGrid *grid, AppEntry *entry)
 {
-    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (VAXP_IS_APP_GRID (grid));
     g_return_if_fail (entry != NULL);
 
     /* Remove from master list (the GPtrArray owns the entry, so this also
@@ -330,13 +330,13 @@ venom_app_grid_remove_app (VenomAppGrid *grid, AppEntry *entry)
 }
 
 void
-venom_app_grid_set_apps (VenomAppGrid *grid, GPtrArray *apps)
+vaxp_app_grid_set_apps (VaxpAppGrid *grid, GPtrArray *apps)
 {
-    g_return_if_fail (VENOM_IS_APP_GRID (grid));
+    g_return_if_fail (VAXP_IS_APP_GRID (grid));
     
     grid->all_apps = apps;
     /* We don't know the current search query here, so the caller must
-       call venom_app_grid_set_filter() afterwards to restore it.
+       call vaxp_app_grid_set_filter() afterwards to restore it.
        For now, we just rebuild with no filter. */
     rebuild_filter (grid, NULL);
 }

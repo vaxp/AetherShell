@@ -61,7 +61,7 @@ static const gchar introspection_xml[] =
   "      <arg type='s' name='action_key'/>"
   "    </signal>"
   "  </interface>"
-  "  <interface name='org.venom.NotificationHistory'>"
+  "  <interface name='org.vaxp.NotificationHistory'>"
   "    <method name='GetHistory'><arg type='a(usssssi)' name='notifications' direction='out'/></method>"
   "    <method name='ClearHistory'/>"
   "    <method name='InvokeDefaultAction'><arg type='u' name='id' direction='in'/></method>"
@@ -78,7 +78,7 @@ void emit_history_updated_signal(GDBusConnection *connection);
 void add_to_history(guint32 id, const char *app, const char *icon, const char *summary, const char *body, const char *desktop_entry, gint value);
 void clear_history();
 static NotificationItem *find_history_item_by_id(guint32 id);
-static VenomNotification *find_active_notification_by_id(guint32 id);
+static VaxpNotification *find_active_notification_by_id(guint32 id);
 static void on_ui_action(guint32 id, const char *action_key, gpointer user_data);
 static guint32 create_new_notification(const char *app_name, guint32 replaces_id, const char *summary, const char *body, const char *icon, GVariant *actions, GVariant *hints, gint timeout, const char *desktop_entry, gint value);
 static gboolean notify_is_wayland_session(void);
@@ -138,9 +138,9 @@ static NotificationItem *find_history_item_by_id(guint32 id) {
     return NULL;
 }
 
-static VenomNotification *find_active_notification_by_id(guint32 id) {
+static VaxpNotification *find_active_notification_by_id(guint32 id) {
     for (GList *l = active_notifications; l != NULL; l = l->next) {
-        VenomNotification *notification = (VenomNotification *)l->data;
+        VaxpNotification *notification = (VaxpNotification *)l->data;
         if (notification->id == id) {
             return notification;
         }
@@ -157,7 +157,7 @@ void emit_history_updated_signal(GDBusConnection *connection) {
     g_dbus_connection_emit_signal(connection,
                                   NULL,
                                   "/org/freedesktop/Notifications",
-                                  "org.venom.NotificationHistory",
+                                  "org.vaxp.NotificationHistory",
                                   "HistoryUpdated",
                                   NULL, NULL);
 }
@@ -226,7 +226,7 @@ static void on_ui_action(guint32 id, const char *action_key, gpointer user_data)
                                       g_variant_new("(us)", id, action_key), NULL);
     }
     if (g_strcmp0(action_key, "default") == 0) {
-        VenomNotification *n = find_active_notification_by_id(id);
+        VaxpNotification *n = find_active_notification_by_id(id);
         if (n && n->desktop_entry) {
             launch_app_from_desktop_entry(n->desktop_entry);
         } else {
@@ -247,7 +247,7 @@ gboolean on_timeout(gpointer data) {
 void close_notification(guint32 id, guint reason) {
     GList *l;
     for (l = active_notifications; l != NULL; l = l->next) {
-        VenomNotification *n = (VenomNotification *)l->data;
+        VaxpNotification *n = (VaxpNotification *)l->data;
         if (n->id == id) {
             if (n->timeout_source > 0) g_source_remove(n->timeout_source);
             
@@ -390,7 +390,7 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
         return new_id;
     }
 
-    VenomNotification *existing_notification = replaces_id ? find_active_notification_by_id(replaces_id) : NULL;
+    VaxpNotification *existing_notification = replaces_id ? find_active_notification_by_id(replaces_id) : NULL;
     if (existing_notification) {
         NotificationItem *existing_item = find_history_item_by_id(existing_notification->id);
         if (existing_item) {
@@ -428,7 +428,7 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
         return existing_notification->id;
     }
 
-    VenomNotification *n = g_new0(VenomNotification, 1);
+    VaxpNotification *n = g_new0(VaxpNotification, 1);
     n->id = id_counter++;
     n->app_name = g_strdup(app_name);
     n->icon_path = g_strdup(icon);
@@ -455,7 +455,7 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
 }
 
 void notify_pause_timeout(guint32 id) {
-    VenomNotification *n = find_active_notification_by_id(id);
+    VaxpNotification *n = find_active_notification_by_id(id);
     if (n && n->timeout_source > 0) {
         g_source_remove(n->timeout_source);
         n->timeout_source = 0;
@@ -463,7 +463,7 @@ void notify_pause_timeout(guint32 id) {
 }
 
 void notify_resume_timeout(guint32 id) {
-    VenomNotification *n = find_active_notification_by_id(id);
+    VaxpNotification *n = find_active_notification_by_id(id);
     if (n && n->timeout_source == 0) {
         n->timeout_source = g_timeout_add(n->original_timeout, on_timeout, GUINT_TO_POINTER(n->id));
     }
@@ -645,7 +645,7 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
         g_dbus_connection_emit_signal(connection,
                                       NULL,
                                       "/org/freedesktop/Notifications",
-                                      "org.venom.NotificationHistory",
+                                      "org.vaxp.NotificationHistory",
                                       "DoNotDisturbChanged",
                                       g_variant_new("(b)", do_not_disturb), NULL);
         
@@ -664,7 +664,7 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
         g_variant_builder_unref(builder);
     }
     else if (g_strcmp0(method_name, "GetServerInformation") == 0) {
-        g_dbus_method_invocation_return_value(invocation, g_variant_new("(ssss)", "Venom", "Vaxp", "1.0", "1.2"));
+        g_dbus_method_invocation_return_value(invocation, g_variant_new("(ssss)", "Vaxp", "Vaxp", "1.0", "1.2"));
     }
     else if (g_strcmp0(method_name, "CloseNotification") == 0) {
         guint32 id;
@@ -703,7 +703,7 @@ void notify_reload_ui(void) {
     notify_ui_init(); // Reload CSS
     notify_ui_reposition(active_notifications, notify_use_layer_shell);
     for (GList *l = active_notifications; l != NULL; l = l->next) {
-        VenomNotification *n = (VenomNotification *)l->data;
+        VaxpNotification *n = (VaxpNotification *)l->data;
         gtk_widget_queue_draw(n->win);
     }
 }

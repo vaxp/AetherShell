@@ -5,15 +5,15 @@
 
 G_BEGIN_DECLS
 
-#define VENOM_TYPE_APP_ICON (venom_app_icon_get_type ())
-G_DECLARE_FINAL_TYPE (VenomAppIcon, venom_app_icon, VENOM, APP_ICON, GtkButton)
+#define VAXP_TYPE_APP_ICON (vaxp_app_icon_get_type ())
+G_DECLARE_FINAL_TYPE (VaxpAppIcon, vaxp_app_icon, VAXP, APP_ICON, GtkButton)
 
 /**
- * VenomAppIcon - A single tappable app icon widget.
+ * VaxpAppIcon - A single tappable app icon widget.
  * Shows a 96×96 icon image + app name label below.
  */
-GtkWidget *venom_app_icon_new       (AppEntry *entry);
-void       venom_app_icon_set_entry (VenomAppIcon *icon, AppEntry *entry);
-AppEntry  *venom_app_icon_get_entry (VenomAppIcon *icon);
+GtkWidget *vaxp_app_icon_new       (AppEntry *entry);
+void       vaxp_app_icon_set_entry (VaxpAppIcon *icon, AppEntry *entry);
+AppEntry  *vaxp_app_icon_get_entry (VaxpAppIcon *icon);
 
 G_END_DECLS

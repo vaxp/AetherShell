@@ -13,6 +13,7 @@ typedef struct {
     GtkWidget *body_lbl;
     GtkWidget *win;
     guint timeout_source;
+    char *desktop_entry;
 } VenomNotification;
 
 void notify_ui_init(void);

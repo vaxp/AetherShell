@@ -23,6 +23,15 @@ static void on_clear_history_clicked(GtkButton *btn, gpointer user_data) {
     venom_notifications_clear_history();
 }
 
+static gboolean on_history_card_clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    if (event->type == GDK_BUTTON_PRESS && event->button == 1) {
+        guint32 id = GPOINTER_TO_UINT(user_data);
+        venom_notifications_invoke_default_action(id);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 static void on_notifications_updated(GList *history, gpointer user_data) {
     GList *children, *iter;
     children = gtk_container_get_children(GTK_CONTAINER(notifications_box));
@@ -77,9 +86,15 @@ static void on_notifications_updated(GList *history, gpointer user_data) {
         for (GList *l = history; l != NULL; l = l->next) {
             NotificationData *n = (NotificationData*)l->data;
             
+            GtkWidget *card_eventbox = gtk_event_box_new();
+            gtk_widget_add_events(card_eventbox, GDK_BUTTON_PRESS_MASK);
+            g_signal_connect(card_eventbox, "button-press-event", G_CALLBACK(on_history_card_clicked), GUINT_TO_POINTER(n->id));
+
             GtkWidget *card = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
             gtk_style_context_add_class(gtk_widget_get_style_context(card), "card");
             gtk_widget_set_hexpand(card, TRUE);
+
+            gtk_container_add(GTK_CONTAINER(card_eventbox), card);
 
             GtkWidget *icon;
             if (n->icon_path && strlen(n->icon_path) > 0) {
@@ -124,7 +139,7 @@ static void on_notifications_updated(GList *history, gpointer user_data) {
             gtk_box_pack_start(GTK_BOX(card), icon, FALSE, FALSE, 0);
             gtk_box_pack_start(GTK_BOX(card), text_box, TRUE, TRUE, 0);
 
-            gtk_box_pack_start(GTK_BOX(notifications_box), card, FALSE, FALSE, 0);
+            gtk_box_pack_start(GTK_BOX(notifications_box), card_eventbox, FALSE, FALSE, 0);
         }
     }
     gtk_widget_show_all(notifications_box);

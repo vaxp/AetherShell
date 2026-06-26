@@ -15,6 +15,7 @@ static void free_notification_data(gpointer data) {
     g_free(n->icon_path);
     g_free(n->summary);
     g_free(n->body);
+    g_free(n->desktop_entry);
     g_free(n);
 }
 
@@ -39,24 +40,26 @@ static void fetch_history(void) {
         GList *history_list = NULL;
         GVariantIter *iter;
         GVariant *child = g_variant_get_child_value(res, 0);
-        g_variant_get(child, "a(ussss)", &iter);
+        g_variant_get(child, "a(usssss)", &iter);
         
         guint32 id;
-        gchar *app, *icon, *summary, *body;
+        gchar *app, *icon, *summary, *body, *desktop_entry;
         
-        while (g_variant_iter_next(iter, "(ussss)", &id, &app, &icon, &summary, &body)) {
+        while (g_variant_iter_next(iter, "(usssss)", &id, &app, &icon, &summary, &body, &desktop_entry)) {
             NotificationData *n = g_new0(NotificationData, 1);
             n->id = id;
             n->app_name = g_strdup(app);
             n->icon_path = g_strdup(icon);
             n->summary = g_strdup(summary);
             n->body = g_strdup(body);
+            n->desktop_entry = g_strdup(desktop_entry);
             history_list = g_list_append(history_list, n);
             
             g_free(app);
             g_free(icon);
             g_free(summary);
             g_free(body);
+            g_free(desktop_entry);
         }
         g_variant_iter_free(iter);
         g_variant_unref(child);
@@ -151,6 +154,18 @@ void venom_notifications_clear_history(void) {
     g_dbus_proxy_call(m_proxy,
                       "ClearHistory",
                       NULL,
+                      G_DBUS_CALL_FLAGS_NONE,
+                      -1,
+                      NULL,
+                      NULL,
+                      NULL);
+}
+
+void venom_notifications_invoke_default_action(guint32 id) {
+    if (!m_proxy) return;
+    g_dbus_proxy_call(m_proxy,
+                      "InvokeDefaultAction",
+                      g_variant_new("(u)", id),
                       G_DBUS_CALL_FLAGS_NONE,
                       -1,
                       NULL,

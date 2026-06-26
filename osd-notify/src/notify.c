@@ -20,6 +20,7 @@ typedef struct {
     char *summary;
     char *body;
     gint64 timestamp;
+    char *desktop_entry;
 } NotificationItem;
 
 GList *active_notifications = NULL;
@@ -57,8 +58,9 @@ static const gchar introspection_xml[] =
   "    </signal>"
   "  </interface>"
   "  <interface name='org.venom.NotificationHistory'>"
-  "    <method name='GetHistory'><arg type='a(ussss)' name='notifications' direction='out'/></method>"
+  "    <method name='GetHistory'><arg type='a(usssss)' name='notifications' direction='out'/></method>"
   "    <method name='ClearHistory'/>"
+  "    <method name='InvokeDefaultAction'><arg type='u' name='id' direction='in'/></method>"
   "    <method name='SetDoNotDisturb'><arg type='b' name='enabled' direction='in'/></method>"
   "    <method name='GetDoNotDisturb'><arg type='b' name='enabled' direction='out'/></method>"
   "    <signal name='HistoryUpdated'/>"
@@ -69,23 +71,24 @@ static const gchar introspection_xml[] =
 // --- تعريف مسبق للدوال ---
 void close_notification(guint32 id, guint reason);
 void emit_history_updated_signal(GDBusConnection *connection);
-void add_to_history(guint32 id, const char *app, const char *icon, const char *summary, const char *body);
+void add_to_history(guint32 id, const char *app, const char *icon, const char *summary, const char *body, const char *desktop_entry);
 void clear_history();
 static NotificationItem *find_history_item_by_id(guint32 id);
 static VenomNotification *find_active_notification_by_id(guint32 id);
 static void on_ui_action(guint32 id, const char *action_key, gpointer user_data);
-static guint32 create_new_notification(const char *app_name, guint32 replaces_id, const char *summary, const char *body, const char *icon, GVariant *actions, GVariant *hints, gint timeout);
+static guint32 create_new_notification(const char *app_name, guint32 replaces_id, const char *summary, const char *body, const char *icon, GVariant *actions, GVariant *hints, gint timeout, const char *desktop_entry);
 static gboolean notify_is_wayland_session(void);
 
 // --- إدارة السجل (History Logic) ---
 
-void add_to_history(guint32 id, const char *app, const char *icon, const char *summary, const char *body) {
+void add_to_history(guint32 id, const char *app, const char *icon, const char *summary, const char *body, const char *desktop_entry) {
     NotificationItem *item = g_new0(NotificationItem, 1);
     item->id = id;
     item->app_name = g_strdup(app);
     item->icon_path = g_strdup(icon);
     item->summary = g_strdup(summary);
     item->body = g_strdup(body);
+    item->desktop_entry = g_strdup(desktop_entry);
     item->timestamp = time(NULL);
 
     // إضافة لأول القائمة (الأحدث أولاً)
@@ -99,6 +102,7 @@ void add_to_history(guint32 id, const char *app, const char *icon, const char *s
         g_free(old_item->icon_path);
         g_free(old_item->summary);
         g_free(old_item->body);
+        g_free(old_item->desktop_entry);
         g_free(old_item);
         history_list = g_list_delete_link(history_list, last);
     }
@@ -112,6 +116,7 @@ void clear_history() {
         g_free(item->icon_path);
         g_free(item->summary);
         g_free(item->body);
+        g_free(item->desktop_entry);
         g_free(item);
     }
     g_list_free(history_list);
@@ -160,12 +165,39 @@ static gboolean notify_is_wayland_session(void) {
 #endif
 }
 
+static void launch_app_from_desktop_entry(const char *desktop_entry) {
+    if (!desktop_entry || strlen(desktop_entry) == 0) return;
+    gchar *desktop_filename = g_strdup_printf("%s.desktop", desktop_entry);
+    GDesktopAppInfo *app_info = g_desktop_app_info_new(desktop_filename);
+    if (app_info) {
+        GError *err = NULL;
+        g_app_info_launch(G_APP_INFO(app_info), NULL, NULL, &err);
+        if (err) {
+            g_printerr("Failed to launch %s: %s\n", desktop_filename, err->message);
+            g_error_free(err);
+        }
+        g_object_unref(app_info);
+    }
+    g_free(desktop_filename);
+}
+
 static void on_ui_action(guint32 id, const char *action_key, gpointer user_data) {
     (void)user_data;
     if (dbus_connection) {
         g_dbus_connection_emit_signal(dbus_connection, NULL, "/org/freedesktop/Notifications",
                                       "org.freedesktop.Notifications", "ActionInvoked",
                                       g_variant_new("(us)", id, action_key), NULL);
+    }
+    if (g_strcmp0(action_key, "default") == 0) {
+        VenomNotification *n = find_active_notification_by_id(id);
+        if (n && n->desktop_entry) {
+            launch_app_from_desktop_entry(n->desktop_entry);
+        } else {
+            NotificationItem *item = find_history_item_by_id(id);
+            if (item && item->desktop_entry) {
+                launch_app_from_desktop_entry(item->desktop_entry);
+            }
+        }
     }
     close_notification(id, 2); // 2 = Dismissed by user
 }
@@ -292,7 +324,7 @@ static gboolean is_error_or_warning(const char *summary, const char *body, const
 }
 
 // --- إنشاء الإشعار وعرضه ---
-static guint32 create_new_notification(const char *app_name, guint32 replaces_id, const char *summary, const char *body, const char *icon, GVariant *actions, GVariant *hints, gint timeout) {
+static guint32 create_new_notification(const char *app_name, guint32 replaces_id, const char *summary, const char *body, const char *icon, GVariant *actions, GVariant *hints, gint timeout, const char *desktop_entry) {
     // تحديد نوع الصوت المناسب (تنبيه عادي أم تحذير/خطأ)
     OsdSoundEvent sound_event = is_error_or_warning(summary, body, icon, hints) ? OSD_SOUND_ERROR : OSD_SOUND_NOTIFICATION;
 
@@ -304,17 +336,19 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
             g_free(existing_item->icon_path);
             g_free(existing_item->summary);
             g_free(existing_item->body);
+            g_free(existing_item->desktop_entry);
             existing_item->app_name = g_strdup(app_name);
             existing_item->icon_path = g_strdup(icon);
             existing_item->summary = g_strdup(summary);
             existing_item->body = g_strdup(body);
+            existing_item->desktop_entry = g_strdup(desktop_entry);
             existing_item->timestamp = time(NULL);
             emit_history_updated_signal(NULL);
             return existing_item->id;
         }
 
         guint32 new_id = id_counter++;
-        add_to_history(new_id, app_name, icon, summary, body);
+        add_to_history(new_id, app_name, icon, summary, body, desktop_entry);
         emit_history_updated_signal(NULL);
         return new_id;
     }
@@ -327,10 +361,12 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
             g_free(existing_item->icon_path);
             g_free(existing_item->summary);
             g_free(existing_item->body);
+            g_free(existing_item->desktop_entry);
             existing_item->app_name = g_strdup(app_name);
             existing_item->icon_path = g_strdup(icon);
             existing_item->summary = g_strdup(summary);
             existing_item->body = g_strdup(body);
+            existing_item->desktop_entry = g_strdup(desktop_entry);
             existing_item->timestamp = time(NULL);
         }
 
@@ -338,6 +374,8 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
         existing_notification->app_name = g_strdup(app_name);
         g_free(existing_notification->icon_path);
         existing_notification->icon_path = g_strdup(icon);
+        g_free(existing_notification->desktop_entry);
+        existing_notification->desktop_entry = g_strdup(desktop_entry);
         notify_ui_update_content(existing_notification, summary, body, icon);
         notify_ui_reposition(active_notifications, notify_use_layer_shell);
 
@@ -355,13 +393,14 @@ static guint32 create_new_notification(const char *app_name, guint32 replaces_id
     n->id = id_counter++;
     n->app_name = g_strdup(app_name);
     n->icon_path = g_strdup(icon);
+    n->desktop_entry = g_strdup(desktop_entry);
 
     notify_ui_setup_window(n, summary, body, icon, actions, notify_use_layer_shell, on_ui_action, NULL);
     
     active_notifications = g_list_append(active_notifications, n);
     
     // إضافة الإشعار للسجل
-    add_to_history(n->id, app_name, icon, summary, body);
+    add_to_history(n->id, app_name, icon, summary, body, desktop_entry);
     
     notify_ui_reposition(active_notifications, notify_use_layer_shell);
     osd_sound_play(sound_event);
@@ -394,25 +433,51 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
                       &app_name, &replaces_id, &app_icon, 
                       &summary, &body, &actions, &hints, &expire_timeout);
 
+        gchar *desktop_entry = NULL;
+        if (hints) {
+            GVariantIter iter;
+            gchar *key;
+            GVariant *val;
+            g_variant_iter_init(&iter, hints);
+            while (g_variant_iter_next(&iter, "{sv}", &key, &val)) {
+                if (g_strcmp0(key, "desktop-entry") == 0) {
+                    if (g_variant_is_of_type(val, G_VARIANT_TYPE_STRING)) {
+                        desktop_entry = g_strdup(g_variant_get_string(val, NULL));
+                    }
+                }
+                g_free(key);
+                g_variant_unref(val);
+            }
+        }
+
+        if (!desktop_entry && app_name && strlen(app_name) > 0) {
+            gchar *desktop_filename = g_strdup_printf("%s.desktop", app_name);
+            GDesktopAppInfo *app_info = g_desktop_app_info_new(desktop_filename);
+            if (app_info) {
+                desktop_entry = g_strdup(app_name);
+                g_object_unref(app_info);
+            } else {
+                gchar *guessed_app = g_utf8_strdown(app_name, -1);
+                for (int i = 0; guessed_app[i] != '\0'; i++) {
+                    if (guessed_app[i] == ' ') {
+                        guessed_app[i] = '-';
+                    }
+                }
+                gchar *guessed_filename = g_strdup_printf("%s.desktop", guessed_app);
+                GDesktopAppInfo *guessed_info = g_desktop_app_info_new(guessed_filename);
+                if (guessed_info) {
+                    desktop_entry = guessed_app;
+                    g_object_unref(guessed_info);
+                } else {
+                    g_free(guessed_app);
+                }
+                g_free(guessed_filename);
+            }
+            g_free(desktop_filename);
+        }
+
         gchar *final_icon = g_strdup(app_icon);
         if (!final_icon || strlen(final_icon) == 0) {
-            gchar *desktop_entry = NULL;
-            if (hints) {
-                GVariantIter iter;
-                gchar *key;
-                GVariant *val;
-                g_variant_iter_init(&iter, hints);
-                while (g_variant_iter_next(&iter, "{sv}", &key, &val)) {
-                    if (g_strcmp0(key, "desktop-entry") == 0) {
-                        if (g_variant_is_of_type(val, G_VARIANT_TYPE_STRING)) {
-                            desktop_entry = g_strdup(g_variant_get_string(val, NULL));
-                        }
-                    }
-                    g_free(key);
-                    g_variant_unref(val);
-                }
-            }
-
             gboolean found = FALSE;
             GtkIconTheme *theme = gtk_icon_theme_get_default();
 
@@ -439,7 +504,6 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
                     }
                     g_free(desktop_filename);
                 }
-                g_free(desktop_entry);
             }
 
             if (!found && app_name && strlen(app_name) > 0) {
@@ -459,8 +523,9 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
             }
         }
 
-        guint32 notification_id = create_new_notification(app_name, replaces_id, summary, body, final_icon, actions, hints, expire_timeout);
+        guint32 notification_id = create_new_notification(app_name, replaces_id, summary, body, final_icon, actions, hints, expire_timeout, desktop_entry);
         g_free(final_icon);
+        g_free(desktop_entry);
         
         // إخبار الكونترول سنتر بتحديث السجل
         emit_history_updated_signal(connection);
@@ -473,20 +538,28 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
     }
     // طلب السجل (للكونترول سنتر)
     else if (g_strcmp0(method_name, "GetHistory") == 0) {
-        GVariantBuilder *builder = g_variant_builder_new(G_VARIANT_TYPE("a(ussss)"));
+        GVariantBuilder *builder = g_variant_builder_new(G_VARIANT_TYPE("a(usssss)"));
         
         for (GList *l = history_list; l != NULL; l = l->next) {
             NotificationItem *item = (NotificationItem *)l->data;
-            g_variant_builder_add(builder, "(ussss)", 
+            g_variant_builder_add(builder, "(usssss)", 
                                   item->id, 
                                   item->app_name ? item->app_name : "",
                                   item->icon_path ? item->icon_path : "",
                                   item->summary ? item->summary : "",
-                                  item->body ? item->body : "");
+                                  item->body ? item->body : "",
+                                  item->desktop_entry ? item->desktop_entry : "");
         }
         
-        g_dbus_method_invocation_return_value(invocation, g_variant_new("(a(ussss))", builder));
+        g_dbus_method_invocation_return_value(invocation, g_variant_new("(a(usssss))", builder));
         g_variant_builder_unref(builder);
+    }
+    // استدعاء الحدث الافتراضي (للكونترول سنتر)
+    else if (g_strcmp0(method_name, "InvokeDefaultAction") == 0) {
+        guint32 id;
+        g_variant_get(parameters, "(u)", &id);
+        on_ui_action(id, "default", NULL);
+        g_dbus_method_invocation_return_value(invocation, NULL);
     }
     // مسح السجل
     else if (g_strcmp0(method_name, "ClearHistory") == 0) {

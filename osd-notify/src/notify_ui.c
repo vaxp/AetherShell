@@ -23,6 +23,18 @@ static void on_action_clicked(GtkButton *button, gpointer user_data) {
     }
 }
 
+static gboolean on_notification_clicked(GtkWidget *widget, GdkEventButton *event, gpointer user_data) {
+    (void)widget;
+    if (event->type == GDK_BUTTON_PRESS && event->button == 1) {
+        ActionData *data = (ActionData *)user_data;
+        if (data && data->action_cb) {
+            data->action_cb(data->notification_id, data->action_key, data->user_data);
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
 static void free_action_data(gpointer data, GClosure *closure) {
     (void)closure;
     ActionData *action_data = (ActionData *)data;
@@ -200,6 +212,14 @@ void notify_ui_setup_window(VenomNotification *notification,
 
     // تخطيط العناصر
     GtkWidget *panel_surface = gtk_event_box_new();
+    gtk_widget_add_events(panel_surface, GDK_BUTTON_PRESS_MASK);
+    ActionData *default_data = g_new0(ActionData, 1);
+    default_data->notification_id = notification->id;
+    default_data->action_key = g_strdup("default");
+    default_data->action_cb = action_cb;
+    default_data->user_data = user_data;
+    g_signal_connect_data(panel_surface, "button-press-event", G_CALLBACK(on_notification_clicked), default_data, free_action_data, 0);
+
     GtkWidget *main_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     gtk_widget_set_app_paintable(panel_surface, TRUE);
     g_signal_connect(panel_surface, "draw", G_CALLBACK(draw_notification_background), NULL);

@@ -10,6 +10,7 @@ typedef struct {
     char *icon_path;
     char *summary;
     char *body;
+    char *desktop_entry;
 } NotificationData;
 
 typedef void (*NotificationsUpdatedCallback)(GList *history, gpointer user_data);
@@ -21,5 +22,6 @@ void venom_notifications_init(NotificationsUpdatedCallback history_cb,
 
 void venom_notifications_set_dnd(gboolean enabled);
 void venom_notifications_clear_history(void);
+void venom_notifications_invoke_default_action(guint32 id);
 
 #endif // VENOM_NOTIFICATIONS_H

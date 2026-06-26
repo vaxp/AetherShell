@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <gio/gio.h>
+#include <gio/gdesktopappinfo.h>
 #include <gtk-layer-shell.h>
 #if defined(GDK_WINDOWING_WAYLAND)
 #include <gdk/gdkwayland.h>
@@ -395,7 +396,53 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
 
         gchar *final_icon = g_strdup(app_icon);
         if (!final_icon || strlen(final_icon) == 0) {
-            if (app_name && strlen(app_name) > 0) {
+            gchar *desktop_entry = NULL;
+            if (hints) {
+                GVariantIter iter;
+                gchar *key;
+                GVariant *val;
+                g_variant_iter_init(&iter, hints);
+                while (g_variant_iter_next(&iter, "{sv}", &key, &val)) {
+                    if (g_strcmp0(key, "desktop-entry") == 0) {
+                        if (g_variant_is_of_type(val, G_VARIANT_TYPE_STRING)) {
+                            desktop_entry = g_strdup(g_variant_get_string(val, NULL));
+                        }
+                    }
+                    g_free(key);
+                    g_variant_unref(val);
+                }
+            }
+
+            gboolean found = FALSE;
+            GtkIconTheme *theme = gtk_icon_theme_get_default();
+
+            if (desktop_entry) {
+                if (gtk_icon_theme_has_icon(theme, desktop_entry)) {
+                    g_free(final_icon);
+                    final_icon = g_strdup(desktop_entry);
+                    found = TRUE;
+                } else {
+                    gchar *desktop_filename = g_strdup_printf("%s.desktop", desktop_entry);
+                    GDesktopAppInfo *app_info = g_desktop_app_info_new(desktop_filename);
+                    if (app_info) {
+                        gchar *icon_str = g_desktop_app_info_get_string(app_info, "Icon");
+                        if (icon_str) {
+                            if (g_path_is_absolute(icon_str) || gtk_icon_theme_has_icon(theme, icon_str)) {
+                                g_free(final_icon);
+                                final_icon = icon_str; 
+                                found = TRUE;
+                            } else {
+                                g_free(icon_str);
+                            }
+                        }
+                        g_object_unref(app_info);
+                    }
+                    g_free(desktop_filename);
+                }
+                g_free(desktop_entry);
+            }
+
+            if (!found && app_name && strlen(app_name) > 0) {
                 gchar *guessed_icon = g_utf8_strdown(app_name, -1);
                 for (int i = 0; guessed_icon[i] != '\0'; i++) {
                     if (guessed_icon[i] == ' ') {
@@ -403,7 +450,6 @@ static void handle_method_call(GDBusConnection *connection, const gchar *sender,
                     }
                 }
                 
-                GtkIconTheme *theme = gtk_icon_theme_get_default();
                 if (gtk_icon_theme_has_icon(theme, guessed_icon)) {
                     g_free(final_icon);
                     final_icon = guessed_icon;

@@ -7,11 +7,6 @@
 #include "workspaces.h"
 #include "compositor_backend.h"
 
-#define DOT_H 10
-#define DOT_W 10
-#define PILL_W 30
-#define DOT_MARGIN 4
-
 typedef struct {
     GtkWidget *box;
     int current_workspace;
@@ -31,48 +26,6 @@ static WorkspaceData *s_workspace_data = NULL;
 static gboolean on_dot_click(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
 static gboolean on_workspace_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data);
 
-static void cairo_pill(cairo_t *cr, double x, double y, double w, double h) {
-    double r = h / 2.0;
-    cairo_new_sub_path(cr);
-    cairo_arc(cr, x + r, y + r, r, M_PI / 2.0, 3.0 * M_PI / 2.0);
-    cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2.0, M_PI / 2.0);
-    cairo_close_path(cr);
-}
-
-static gboolean on_dot_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
-    DotCtx *dot = user_data;
-    int w = gtk_widget_get_allocated_width(widget);
-    int h = gtk_widget_get_allocated_height(widget);
-
-    (void)widget;
-
-    if (dot->is_active) {
-        cairo_set_source_rgba(cr, 0.486, 0.227, 0.929, 1.0);
-        cairo_pill(cr, 0, 0, w, h);
-        cairo_fill(cr);
-    } else {
-        double cx = w / 2.0;
-        double cy = h / 2.0;
-        double r = MIN(cx, cy);
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0);
-        cairo_arc(cr, cx, cy, r, 0, 2.0 * M_PI);
-        cairo_fill(cr);
-    }
-    return FALSE;
-}
-
-static gboolean on_container_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
-    int w = gtk_widget_get_allocated_width(widget);
-    int h = gtk_widget_get_allocated_height(widget);
-
-    (void)user_data;
-
-    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.3);
-    cairo_pill(cr, 0, 0, w, h);
-    cairo_fill(cr);
-    return FALSE;
-}
-
 static void rebuild_workspace_buttons(WorkspaceData *data) {
     GList *children;
 
@@ -87,7 +40,7 @@ static void rebuild_workspace_buttons(WorkspaceData *data) {
     for (int i = 0; i < data->workspace_count; i++) {
         DotCtx *dot = g_new0(DotCtx, 1);
         GtkWidget *ev = gtk_event_box_new();
-        GtkWidget *da = gtk_drawing_area_new();
+        GtkWidget *da = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 
         dot->ws_data = data;
         dot->index = i;
@@ -100,13 +53,15 @@ static void rebuild_workspace_buttons(WorkspaceData *data) {
 
         g_signal_connect(ev, "button-press-event", G_CALLBACK(on_dot_click), dot);
 
-        gtk_widget_set_app_paintable(da, TRUE);
-        gtk_widget_set_size_request(da, dot->is_active ? PILL_W : DOT_W, DOT_H);
+        GtkStyleContext *ctx = gtk_widget_get_style_context(da);
+        gtk_style_context_add_class(ctx, "workspace-dot");
+        if (dot->is_active) {
+            gtk_style_context_add_class(ctx, "workspace-dot-active");
+        }
         gtk_widget_set_valign(da, GTK_ALIGN_CENTER);
-        g_signal_connect(da, "draw", G_CALLBACK(on_dot_draw), dot);
 
         gtk_container_add(GTK_CONTAINER(ev), da);
-        gtk_box_pack_start(GTK_BOX(data->box), ev, FALSE, FALSE, DOT_MARGIN / 2);
+        gtk_box_pack_start(GTK_BOX(data->box), ev, FALSE, FALSE, 0);
     }
 
     gtk_widget_show_all(data->box);
@@ -202,11 +157,11 @@ GtkWidget *create_workspaces_widget(void) {
     GtkWidget *event_box = gtk_event_box_new();
 
     gtk_event_box_set_visible_window(GTK_EVENT_BOX(event_box), TRUE);
-    gtk_widget_set_app_paintable(event_box, TRUE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(event_box), "workspace-container");
+    
     gtk_widget_set_margin_top(event_box, 4);
     gtk_widget_set_margin_bottom(event_box, 4);
     gtk_widget_add_events(event_box, GDK_SCROLL_MASK);
-    g_signal_connect(event_box, "draw", G_CALLBACK(on_container_draw), NULL);
     g_signal_connect(event_box, "scroll-event", G_CALLBACK(on_workspace_scroll), data);
 
     data->box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);

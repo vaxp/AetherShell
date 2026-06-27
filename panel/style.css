@@ -315,7 +315,7 @@ separator {
     border-radius: 26px;
 }
 
-/* ── Workspace dot indicators (Cairo based) ─────────────────────────────── */
+/* ── Workspace dot indicators (GTK CSS based) ─────────────────────────────── */
 
 .workspace-dot-event-box {
     background-color: transparent;
@@ -323,6 +323,25 @@ separator {
     box-shadow: none;
     /* Extra padding to increase the clickable hit area */
     padding: 6px; 
+}
+
+.workspace-dot {
+    background-color: #ffffff;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 5px;
+    margin: 0 2px;
+}
+
+.workspace-dot-active {
+    background-color: #7c3aed;
+    min-width: 30px;
+    border-radius: 5px;
+}
+
+.workspace-container {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 14px;
 }
 
 /* ── Volume Indicator (panel button) ──────────────────────────────────────── */

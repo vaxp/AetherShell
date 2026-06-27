@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AetherShell Panel Designer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────── -->
+<header id="topbar">
+  <div class="topbar-left">
+    <span class="logo">⬡</span>
+    <span class="app-title">Panel Designer</span>
+    <span id="dirty-badge" class="badge hidden">Unsaved</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost" id="btn-reset" title="Discard all changes">↩ Reset</button>
+    <button class="btn btn-accent" id="btn-apply" title="Apply CSS immediately (no restart needed)">⚡ Apply Style</button>
+    <button class="btn btn-primary" id="btn-save" title="Save layout + style">💾 Save</button>
+    <button class="btn btn-danger" id="btn-restart" title="Save & restart the panel">↺ Restart Panel</button>
+  </div>
+</header>
+
+<!-- ── Live Preview ─────────────────────────────────────────────────── -->
+<div id="preview-wrap">
+  <div class="preview-label">LIVE PREVIEW</div>
+  <div id="preview-bar">
+    <div id="preview-left"  class="preview-zone"></div>
+    <div id="preview-center" class="preview-zone"></div>
+    <div id="preview-right"  class="preview-zone"></div>
+  </div>
+</div>
+
+<!-- ── Main workspace ───────────────────────────────────────────────── -->
+<div id="workspace">
+
+  <!-- LEFT: Plugin palette -->
+  <aside id="palette">
+    <div class="panel-title">Plugins</div>
+    <div class="search-wrap">
+      <input type="text" id="plugin-search" placeholder="🔍 Search…">
+    </div>
+    <div id="plugin-list"></div>
+  </aside>
+
+  <!-- CENTER: Zone editor -->
+  <main id="zone-editor">
+    <div class="zone-wrap" id="zone-left-wrap">
+      <div class="zone-label">◀ LEFT</div>
+      <div class="zone-drop" id="zone-left" data-zone="left"></div>
+      <button class="btn-add-pill" data-zone="left">+ Add Pill</button>
+    </div>
+    <div class="zone-wrap" id="zone-center-wrap">
+      <div class="zone-label">● CENTER</div>
+      <div class="zone-drop" id="zone-center" data-zone="center"></div>
+      <button class="btn-add-pill" data-zone="center">+ Add Pill</button>
+    </div>
+    <div class="zone-wrap" id="zone-right-wrap">
+      <div class="zone-label">RIGHT ▶</div>
+      <div class="zone-drop" id="zone-right" data-zone="right"></div>
+      <button class="btn-add-pill" data-zone="right">+ Add Pill</button>
+    </div>
+  </main>
+
+  <!-- RIGHT: Style inspector -->
+  <aside id="inspector">
+    <div class="inspector-tabs">
+      <button class="itab active" data-tab="pills">💊 Pills</button>
+      <button class="itab" data-tab="windows">🪟 Windows</button>
+    </div>
+
+    <!-- ── Pills tab ── -->
+    <div id="tab-pills" class="tab-content">
+      <div id="inspector-empty" class="inspector-hint">
+        <span>👆</span>
+        <p>Click a pill to<br>edit its style</p>
+      </div>
+      <div id="inspector-panel" class="hidden">
+        <div class="inspector-target" id="inspector-target-label">—</div>
+
+        <div class="prop-group">
+          <label class="prop-label">Background Color</label>
+          <div class="color-row">
+            <input type="color" id="prop-bg-color" value="#000000">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="prop-bg-alpha" min="0" max="100" value="30">
+              <span id="prop-bg-alpha-val" class="range-val">30%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Border Radius</label>
+          <div class="range-row">
+            <input type="range" id="prop-radius" min="0" max="30" value="14">
+            <span id="prop-radius-val" class="range-val">14px</span>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Margin (Top / Bottom)</label>
+          <div class="range-row">
+            <input type="range" id="prop-margin-v" min="0" max="20" value="4">
+            <span id="prop-margin-v-val" class="range-val">4px</span>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Margin (Left / Right)</label>
+          <div class="range-row">
+            <input type="range" id="prop-margin-h" min="0" max="20" value="4">
+            <span id="prop-margin-h-val" class="range-val">4px</span>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Horizontal Padding</label>
+          <div class="range-row">
+            <input type="range" id="prop-padding" min="0" max="24" value="4">
+            <span id="prop-padding-val" class="range-val">4px</span>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Border</label>
+          <div class="color-row">
+            <label class="toggle-wrap">
+              <input type="checkbox" id="prop-border-on">
+              <span class="toggle-label">Show</span>
+            </label>
+            <input type="color" id="prop-border-color" value="#ffffff">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="prop-border-alpha" min="0" max="100" value="15">
+              <span id="prop-border-alpha-val" class="range-val">15%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Border Width</label>
+          <div class="range-row">
+            <input type="range" id="prop-border-width" min="1" max="10" value="1">
+            <span id="prop-border-width-val" class="range-val">1px</span>
+          </div>
+        </div>
+
+        <div class="prop-group">
+          <label class="prop-label">Panel Background</label>
+          <div class="color-row">
+            <input type="color" id="prop-panel-color" value="#000000">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="prop-panel-alpha" min="0" max="100" value="0">
+              <span id="prop-panel-alpha-val" class="range-val">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost btn-block" id="btn-reset-pill">↩ Reset this pill</button>
+      </div>
+    </div>
+
+    <!-- ── Windows tab ── -->
+    <div id="tab-windows" class="tab-content hidden">
+      <div class="win-selector">
+        <label class="prop-label">Select Window / Popup</label>
+        <select id="win-select">
+          <option value="aether-volume">🔊 Volume Mixer</option>
+          <option value="aether-mic">🎙️ Mic Mixer</option>
+          <option value="aether-wifi">📶 Wi-Fi Popup</option>
+          <option value="aether-bt">🔵 Bluetooth Popup</option>
+          <option value="aether-battery">🔋 Battery Popup</option>
+          <option value="aether-notifs">🔔 Notifications</option>
+          <option value="aether-cc">⚙️ Control Center</option>
+          <option value="aether-appmenu">🖥️ App Menu</option>
+          <option value="aether-clock">🕐 Sidebar / Clock</option>
+        </select>
+        <div id="win-scope-hint" class="scope-hint">
+          Scope: <code id="win-scope-code">—</code>
+        </div>
+      </div>
+
+      <div id="win-props">
+
+        <!-- Root / Accent -->
+        <div class="prop-section-title">🎨 Root / Accent Color</div>
+        <div class="prop-group">
+          <label class="prop-label">Accent (sliders, active toggle, hover)</label>
+          <div class="color-row">
+            <input type="color" id="win-accent-color" value="#00e5ff">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-accent-alpha" min="0" max="100" value="100">
+              <span id="win-accent-alpha-val" class="range-val">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Background -->
+        <div class="prop-section-title">🌑 Window Background</div>
+        <div class="prop-group">
+          <label class="prop-label">Background Color</label>
+          <div class="color-row">
+            <input type="color" id="win-bg-color" value="#0c0c0e">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-bg-alpha" min="0" max="100" value="92">
+              <span id="win-bg-alpha-val" class="range-val">92%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Surface / Card -->
+        <div class="prop-section-title">🪟 Surface / Card</div>
+        <div class="prop-group">
+          <label class="prop-label">Surface Color</label>
+          <div class="color-row">
+            <input type="color" id="win-surface-color" value="#181820">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-surface-alpha" min="0" max="100" value="85">
+              <span id="win-surface-alpha-val" class="range-val">85%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Element -->
+        <div class="prop-section-title">🎚️ Elements (sliders, toggles)</div>
+        <div class="prop-group">
+          <label class="prop-label">Element Fill Color</label>
+          <div class="color-row">
+            <input type="color" id="win-element-color" value="#2a2a30">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-element-alpha" min="0" max="100" value="100">
+              <span id="win-element-alpha-val" class="range-val">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Text -->
+        <div class="prop-section-title">🔤 Text</div>
+        <div class="prop-group">
+          <label class="prop-label">Primary Text Color</label>
+          <div class="color-row">
+            <input type="color" id="win-text-color" value="#cccccc">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-text-alpha" min="0" max="100" value="100">
+              <span id="win-text-alpha-val" class="range-val">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Secondary Text Color</label>
+          <div class="color-row">
+            <input type="color" id="win-text2-color" value="#888888">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-text2-alpha" min="0" max="100" value="100">
+              <span id="win-text2-alpha-val" class="range-val">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Icons -->
+        <div class="prop-section-title">🔷 Icons</div>
+        <div class="prop-group">
+          <label class="prop-label">Icon Color</label>
+          <div class="color-row">
+            <input type="color" id="win-icon-color" value="#888888">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-icon-alpha" min="0" max="100" value="100">
+              <span id="win-icon-alpha-val" class="range-val">100%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Border + Shape -->
+        <div class="prop-section-title">📐 Shape & Border</div>
+        <div class="prop-group">
+          <label class="prop-label">Corner Radius</label>
+          <div class="range-row">
+            <input type="range" id="win-radius" min="0" max="30" value="14">
+            <span id="win-radius-val" class="range-val">14px</span>
+          </div>
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Border</label>
+          <div class="color-row">
+            <label class="toggle-wrap">
+              <input type="checkbox" id="win-border-on">
+              <span class="toggle-label">Show</span>
+            </label>
+            <input type="color" id="win-border-color" value="#ffffff">
+            <div class="alpha-wrap">
+              <span class="alpha-label">Alpha</span>
+              <input type="range" id="win-border-alpha" min="0" max="100" value="10">
+              <span id="win-border-alpha-val" class="range-val">10%</span>
+            </div>
+          </div>
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Min Width (px)</label>
+          <div class="range-row">
+            <input type="range" id="win-width" min="200" max="600" value="320">
+            <span id="win-width-val" class="range-val">320px</span>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost btn-block" id="btn-reset-win">↩ Reset this window</button>
+        <button class="btn btn-accent btn-block" id="btn-apply-win" style="margin-top:6px">⚡ Apply Window Style</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+
+<!-- Drag ghost element -->
+<div id="drag-ghost"></div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

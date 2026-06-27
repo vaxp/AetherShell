@@ -75,6 +75,10 @@ for proj in "${projects[@]}"; do
         mkdir -p "${STAGING}/usr/bin/resources/images" || exit 1
         cp "${PROJ_PATH}/style.css"        "${STAGING}/usr/bin/resources/style.css" || exit 1
         cp "${PROJ_PATH}/images/"*         "${STAGING}/usr/bin/resources/images/" || exit 1
+        # Copy designer and its UI next to panel
+        cp "${PROJ_PATH}/designer/aether-panel-designer" "${STAGING}/usr/bin/" || exit 1
+        mkdir -p "${STAGING}/usr/bin/ui" || exit 1
+        cp "${PROJ_PATH}/designer/ui/"* "${STAGING}/usr/bin/ui/" || exit 1
     elif [ "${proj}" == "basilisk" ]; then
         make DESTDIR="${STAGING}" install || exit 1
     elif [ "${proj}" == "aetherlock" ]; then

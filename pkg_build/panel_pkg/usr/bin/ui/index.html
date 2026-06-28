@@ -178,6 +178,7 @@
           <option value="aether-cc">⚙️ Control Center</option>
           <option value="aether-appmenu">🖥️ App Menu</option>
           <option value="aether-clock">🕐 Sidebar / Clock</option>
+          <option value="aether-workspaces">⬛ Workspaces</option>
         </select>
         <div id="win-scope-hint" class="scope-hint">
           Scope: <code id="win-scope-code">—</code>
@@ -315,6 +316,103 @@
 
         <button class="btn btn-ghost btn-block" id="btn-reset-win">↩ Reset this window</button>
         <button class="btn btn-accent btn-block" id="btn-apply-win" style="margin-top:6px">⚡ Apply Window Style</button>
+
+        <!-- ── Notifications Indicator badge colours (shown only for aether-notifs) ── -->
+        <div id="notif-indicator-section" class="hidden" style="margin-top:16px">
+          <div class="prop-section-title">🔔 Indicator Badge</div>
+          <div class="prop-group">
+            <label class="prop-label">Badge Background Color</label>
+            <div class="color-row">
+              <input type="color" id="notif-badge-bg-color" value="#ce93d8">
+              <div class="alpha-wrap">
+                <span class="alpha-label">Alpha</span>
+                <input type="range" id="notif-badge-bg-alpha" min="0" max="100" value="100">
+                <span id="notif-badge-bg-alpha-val" class="range-val">100%</span>
+              </div>
+            </div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Badge Text Color</label>
+            <div class="color-row">
+              <input type="color" id="notif-badge-fg-color" value="#1a0028">
+              <div class="alpha-wrap">
+                <span class="alpha-label">Alpha</span>
+                <input type="range" id="notif-badge-fg-alpha" min="0" max="100" value="100">
+                <span id="notif-badge-fg-alpha-val" class="range-val">100%</span>
+              </div>
+            </div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Bell Color</label>
+            <div class="color-row">
+              <input type="color" id="notif-bell-color" value="#cccccc">
+              <div class="alpha-wrap">
+                <span class="alpha-label">Alpha</span>
+                <input type="range" id="notif-bell-alpha" min="0" max="100" value="100">
+                <span id="notif-bell-alpha-val" class="range-val">100%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Workspaces Indicator colours & sizes (shown only for aether-workspaces) ── -->
+        <div id="ws-indicator-section" class="hidden" style="margin-top:16px">
+          <div class="prop-section-title">⬛ Workspaces Indicator</div>
+          <div class="prop-group">
+            <label class="prop-label">Active Dot Color</label>
+            <div class="color-row">
+              <input type="color" id="ws-active-color" value="#7c3aed">
+            </div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Base Dot Color</label>
+            <div class="color-row">
+              <input type="color" id="ws-inactive-color" value="#ffffff">
+            </div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Container Background</label>
+            <div class="color-row">
+              <input type="color" id="ws-container-bg" value="#000000">
+              <div class="alpha-wrap">
+                <span class="alpha-label">Alpha</span>
+                <input type="range" id="ws-container-alpha" min="0" max="100" value="30">
+                <span id="ws-container-alpha-val" class="range-val">30%</span>
+              </div>
+            </div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Dot Width (px)</label>
+            <input type="range" id="ws-dot-w" min="4" max="40" value="10">
+            <div style="text-align:right; font-size:11px" id="ws-dot-w-val">10px</div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Dot Height (px)</label>
+            <input type="range" id="ws-dot-h" min="4" max="40" value="10">
+            <div style="text-align:right; font-size:11px" id="ws-dot-h-val">10px</div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Active Pill Width (px)</label>
+            <input type="range" id="ws-pill-w" min="10" max="80" value="30">
+            <div style="text-align:right; font-size:11px" id="ws-pill-w-val">30px</div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Dot Margin (px)</label>
+            <input type="range" id="ws-margin" min="0" max="20" value="2">
+            <div style="text-align:right; font-size:11px" id="ws-margin-val">2px</div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Dot Border Radius (px)</label>
+            <input type="range" id="ws-border-radius" min="0" max="40" value="5">
+            <div style="text-align:right; font-size:11px" id="ws-border-radius-val">5px</div>
+          </div>
+          <div class="prop-group">
+            <label class="prop-label">Container Radius (px)</label>
+            <input type="range" id="ws-container-radius" min="0" max="40" value="14">
+            <div style="text-align:right; font-size:11px" id="ws-container-radius-val">14px</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </aside>

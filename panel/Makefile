@@ -9,7 +9,7 @@ RESOURCES_DIR ?= $(DATADIR)/resources
 PLUGINDIR ?= $(PREFIX)/share/aether-panel/plugins
 
 PKGS = gtk+-3.0 gtk-layer-shell-0 libpulse libpulse-mainloop-glib \
-       gio-2.0 json-glib-1.0 dbusmenu-glib-0.4 wayland-client
+       gio-2.0 json-glib-1.0 dbusmenu-glib-0.4 wayland-client libsoup-3.0
 
 DESIGNER_PKGS = gtk+-3.0 webkit2gtk-4.1 json-glib-1.0 gio-2.0
 
@@ -36,9 +36,9 @@ ENGINE_SRC = src/plugin_engine.c \
 COMPONENT_SRC = src/ui/control_center_ui.c src/ui/app_menu.c \
                 src/battery_indicator.c src/logic/pulse_volume.c src/logic/power_profile.c \
                 src/logic/mpris_control.c src/logic/power_actions.c src/logic/vaxp_notifications.c \
-                src/ui/workspaces.c src/ui/keyboard_layout.c src/sni_tray.c src/logic/resource_paths.c \
+                src/ui/workspaces.c src/ui/keyboard_layout.c src/logic/sni_backend.c src/ui/sni_tray.c src/logic/resource_paths.c \
                 src/logic/network_actions.c src/logic/brightness_control.c src/volume_indicator.c \
-                src/mic_indicator.c src/wifi_indicator.c src/sidebar.c src/ui/notifications_ui.c \
+                src/mic_indicator.c src/wifi_indicator.c src/ui/sidebar.c src/logic/sidebar_backend.c src/ui/notifications_ui.c \
                 src/notifications_indicator.c \
                 src/bluetooth_manager.c src/bt_indicator.c src/logic/window_backend.c \
                 src/logic/compositor_backend.c src/protocols/aether-ipc-v1-client-protocol.c \

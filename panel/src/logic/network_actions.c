@@ -230,10 +230,47 @@ static gboolean check_eth_state(gpointer user_data)
 /* Public init                                                                 */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+static void on_nm_properties_changed(GDBusConnection *conn,
+                                     const gchar *sender,
+                                     const gchar *object_path,
+                                     const gchar *iface_name,
+                                     const gchar *signal_name,
+                                     GVariant    *parameters,
+                                     gpointer     user_data)
+{
+    (void)conn; (void)sender; (void)object_path; (void)signal_name; (void)user_data;
+
+    gchar *changed_iface = NULL;
+    GVariant *changed_props = NULL;
+    g_variant_get(parameters, "(&s@a{sv}as)", &changed_iface, &changed_props, NULL);
+    
+    if (g_strcmp0(changed_iface, NM_DBUS_IFACE) == 0 && changed_props) {
+        GVariant *we = g_variant_lookup_value(changed_props, "WirelessEnabled", G_VARIANT_TYPE_BOOLEAN);
+        if (we) {
+            current_wifi_state = g_variant_get_boolean(we);
+            g_variant_unref(we);
+            if (ui_wifi_cb) ui_wifi_cb(current_wifi_state);
+        }
+    }
+    
+    if (changed_props) g_variant_unref(changed_props);
+}
+
 void network_init_state(void (*wifi_cb)(gboolean), void (*eth_cb)(gboolean))
 {
     ui_wifi_cb = wifi_cb;
     ui_eth_cb  = eth_cb;
+    
+    GDBusConnection *bus = shared_bus();
+    if (bus) {
+        g_dbus_connection_signal_subscribe(
+            bus, NM_DBUS_SERVICE,
+            DBUS_PROPS_IFACE, "PropertiesChanged",
+            NM_DBUS_PATH, NULL,
+            G_DBUS_SIGNAL_FLAGS_NONE,
+            on_nm_properties_changed, NULL, NULL);
+    }
+
     check_wifi_state(NULL);
     check_eth_state(NULL);
 }
@@ -253,9 +290,25 @@ void network_toggle_wifi(void)
 
     set_dbus_property(bus, NM_DBUS_SERVICE, NM_DBUS_PATH, NM_DBUS_IFACE,
                       "WirelessEnabled", g_variant_new_boolean(next));
+}
 
-    /* Re-read actual state after NM processes the request */
-    g_timeout_add_seconds(2, check_wifi_state, NULL);
+gboolean network_is_wifi_enabled(void)
+{
+    return current_wifi_state;
+}
+
+void network_set_wifi(gboolean enable)
+{
+    /* Always update local state immediately so we don't get stuck */
+    current_wifi_state = enable;
+    
+    if (ui_wifi_cb) ui_wifi_cb(enable);
+
+    GDBusConnection *bus = shared_bus();
+    if (!bus) { g_timeout_add_seconds(1, check_wifi_state, NULL); return; }
+
+    set_dbus_property(bus, NM_DBUS_SERVICE, NM_DBUS_PATH, NM_DBUS_IFACE,
+                      "WirelessEnabled", g_variant_new_boolean(enable));
 }
 
 /* ─────────────────────────────────────────────────────────────────────────── */

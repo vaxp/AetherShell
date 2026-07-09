@@ -48,6 +48,9 @@ void bluetooth_init(BtStateCallback cb, gpointer user_data);
 /** Toggle adapter Powered property on/off. */
 void bluetooth_toggle(void);
 
+/** Set adapter Powered property directly. */
+void bluetooth_set_powered(gboolean powered);
+
 /**
  * bluetooth_scan:
  * Start a 10-second discovery pass on the adapter.

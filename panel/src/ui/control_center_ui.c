@@ -11,10 +11,12 @@
 #include "brightness_control.h"
 #include "bluetooth_manager.h"
 #include "window_backend.h"
+#include "airplane_mode.h"
 
 static GtkWidget *bt_wifi = NULL;
 static GtkWidget *bt_eth  = NULL;
 static GtkWidget *bt_blue = NULL;   /* bluetooth button in CC grid */
+static GtkWidget *bt_airplane = NULL; /* airplane mode button */
 
 /* ── Bluetooth popover (device list) ──────────────────────────────────────── */
 static GtkWidget *bt_popover  = NULL;
@@ -309,6 +311,22 @@ static void on_eth_state_changed(gboolean enabled) {
     } else {
         gtk_style_context_remove_class(ctx, "active-cyan");
     }
+}
+
+static void on_airplane_state_changed(gboolean active, gpointer user_data) {
+    (void)user_data;
+    if (!bt_airplane) return;
+    GtkStyleContext *ctx = gtk_widget_get_style_context(bt_airplane);
+    if (active) {
+        gtk_style_context_add_class(ctx, "active-cyan");
+    } else {
+        gtk_style_context_remove_class(ctx, "active-cyan");
+    }
+}
+
+static void on_airplane_clicked(GtkButton *btn, gpointer user_data) {
+    (void)btn; (void)user_data;
+    airplane_mode_toggle();
 }
 
 static void on_wifi_clicked(GtkButton *btn, gpointer user_data) {
@@ -860,11 +878,12 @@ static GtkWidget* create_controls_page() {
     GtkWidget *tl_btn1 = create_icon_button("network-wireless-symbolic", NULL);
     GtkWidget *tl_btn2 = create_icon_button("bluetooth-active-symbolic", NULL);
     GtkWidget *tl_btn3 = create_icon_button("network-wired-symbolic", NULL);
-    GtkWidget *tl_btn4 = create_icon_button("view-more-symbolic", NULL);
+    GtkWidget *tl_btn4 = create_icon_button("airplane-mode-symbolic", NULL);
 
     bt_wifi = tl_btn1;
     bt_eth  = tl_btn3;
     bt_blue = tl_btn2;
+    bt_airplane = tl_btn4;
 
     gtk_widget_add_events(tl_btn1, GDK_BUTTON_PRESS_MASK);
     gtk_widget_add_events(tl_btn2, GDK_BUTTON_PRESS_MASK);
@@ -873,6 +892,7 @@ static GtkWidget* create_controls_page() {
     g_signal_connect(tl_btn2, "clicked",             G_CALLBACK(on_bt_clicked),        NULL);
     g_signal_connect(tl_btn2, "button-press-event",  G_CALLBACK(on_bt_button_press),   NULL);
     g_signal_connect(tl_btn3, "clicked",             G_CALLBACK(on_eth_clicked),       NULL);
+    g_signal_connect(tl_btn4, "clicked",             G_CALLBACK(on_airplane_clicked),  NULL);
 
     gtk_grid_attach(GTK_GRID(card_tl), tl_btn1, 0, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(card_tl), tl_btn2, 1, 0, 1, 1);
@@ -1239,6 +1259,7 @@ GtkWidget* init_control_center(void) {
     network_init_state(on_wifi_state_changed, on_eth_state_changed);
     bluetooth_init(on_bt_state_changed_cc, NULL);
     brightness_init(on_brightness_changed, NULL);
+    airplane_mode_init(on_airplane_state_changed, NULL);
 
     return popover;
 }

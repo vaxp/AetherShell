@@ -9,6 +9,9 @@ void network_init_state(void (*wifi_cb)(gboolean), void (*eth_cb)(gboolean));
 void network_toggle_wifi(void);
 void network_toggle_ethernet(void);
 
+gboolean network_is_wifi_enabled(void);
+void network_set_wifi(gboolean enable);
+
 /* ── WiFi scan & connect (D-Bus NetworkManager) ──────────────────────────── */
 
 typedef struct {

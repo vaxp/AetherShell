@@ -743,6 +743,28 @@ void bluetooth_toggle(void)
 }
 
 /* ─────────────────────────────────────────────────────── */
+/* Public: bluetooth_set_powered                           */
+/* ─────────────────────────────────────────────────────── */
+
+void bluetooth_set_powered(gboolean powered)
+{
+    if (!adapter_path) {
+        if (!find_adapter() || !adapter_path) return;
+    }
+    
+    if (bt_powered == powered) return;
+
+    if (powered) rfkill_set_bluetooth(TRUE);
+    else         rfkill_set_bluetooth(FALSE);
+
+    bt_powered = powered;
+    if (state_cb) state_cb(bt_powered, state_cb_data);
+
+    set_property(adapter_path, BLUEZ_ADAPTER_IFACE, "Powered",
+                 g_variant_new_boolean(powered));
+}
+
+/* ─────────────────────────────────────────────────────── */
 /* Public: bluetooth_scan / bluetooth_scan_stop            */
 /* ─────────────────────────────────────────────────────── */
 

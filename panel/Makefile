@@ -43,7 +43,8 @@ COMPONENT_SRC = src/ui/control_center_ui.c src/ui/app_menu.c \
                 src/bluetooth_manager.c src/bt_indicator.c src/logic/window_backend.c \
                 src/logic/compositor_backend.c src/protocols/aether-ipc-v1-client-protocol.c \
                 src/protocols/aether-ipc-unstable-v2-protocol.c \
-                src/logic/workspaces_xorg.c src/logic/kb_indicator_xorg.c
+                src/logic/workspaces_xorg.c src/logic/kb_indicator_xorg.c \
+                src/logic/airplane_mode.c
 
 SRC      = src/ui/panel.c $(ENGINE_SRC) $(COMPONENT_SRC)
 INCLUDES = -Iinclude -I.

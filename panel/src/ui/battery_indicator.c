@@ -1,24 +1,10 @@
 #include "battery_indicator.h"
+#include "battery_backend.h"
 #include "window_backend.h"
-#include <gio/gio.h>
 #include <gtk-layer-shell.h>
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
-
-#define UPOWER_BUS "org.freedesktop.UPower"
-#define UPOWER_PATH "/org/freedesktop/UPower/devices/DisplayDevice"
-#define UPOWER_IFACE "org.freedesktop.UPower.Device"
-
-typedef struct {
-    double percentage;
-    guint32 state;
-    double energy;
-    double energy_full;
-    double energy_full_design;
-    double capacity;
-    guint64 update_time;
-} BatteryInfo;
 
 static GtkWidget *battery_button;
 static GtkWidget *battery_drawing_area;
@@ -28,8 +14,6 @@ static GtkWidget *charge_value_label;
 static GtkWidget *size_value_label;
 static GtkWidget *last_charge_value_label;
 static GtkWidget *health_value_label;
-static GDBusProxy *upower_proxy = NULL;
-static BatteryInfo battery_info = {0};
 static gboolean battery_popup_visible = FALSE;
 
 static const char *battery_state_to_text(guint32 state) {
@@ -68,7 +52,7 @@ static void format_timestamp(guint64 timestamp, char *out, size_t len) {
     strftime(out, len, "%Y-%m-%d %H:%M", tm_info);
 }
 
-static void update_battery_details_ui(void) {
+static void update_battery_details_ui(const BatteryInfo *info) {
     char charge_text[64];
     char size_text[64];
     char health_text[64];
@@ -76,23 +60,23 @@ static void update_battery_details_ui(void) {
     double health_value = 0.0;
 
     if (status_value_label) {
-        gtk_label_set_text(GTK_LABEL(status_value_label), battery_state_to_text(battery_info.state));
+        gtk_label_set_text(GTK_LABEL(status_value_label), battery_state_to_text(info->state));
     }
 
-    g_snprintf(charge_text, sizeof(charge_text), "%.0f%%", battery_info.percentage);
+    g_snprintf(charge_text, sizeof(charge_text), "%.0f%%", info->percentage);
     if (charge_value_label) {
         gtk_label_set_text(GTK_LABEL(charge_value_label), charge_text);
     }
 
-    format_energy(battery_info.energy_full, size_text, sizeof(size_text));
+    format_energy(info->energy_full, size_text, sizeof(size_text));
     if (size_value_label) {
         gtk_label_set_text(GTK_LABEL(size_value_label), size_text);
     }
 
-    if (battery_info.capacity > 0.0) {
-        health_value = battery_info.capacity;
-    } else if (battery_info.energy_full > 0.0 && battery_info.energy_full_design > 0.0) {
-        health_value = (battery_info.energy_full / battery_info.energy_full_design) * 100.0;
+    if (info->capacity > 0.0) {
+        health_value = info->capacity;
+    } else if (info->energy_full > 0.0 && info->energy_full_design > 0.0) {
+        health_value = (info->energy_full / info->energy_full_design) * 100.0;
     }
 
     if (health_value > 0.0) {
@@ -104,7 +88,7 @@ static void update_battery_details_ui(void) {
         gtk_label_set_text(GTK_LABEL(health_value_label), health_text);
     }
 
-    format_timestamp(battery_info.update_time, last_charge_text, sizeof(last_charge_text));
+    format_timestamp(info->update_time, last_charge_text, sizeof(last_charge_text));
     if (last_charge_value_label) {
         gtk_label_set_text(GTK_LABEL(last_charge_value_label), last_charge_text);
     }
@@ -115,10 +99,13 @@ static void update_battery_details_ui(void) {
 }
 
 static gboolean on_draw_battery(GtkWidget *widget, cairo_t *cr, gpointer data) {
+    (void)data;
+    const BatteryInfo *info = battery_backend_get_info();
+    
     guint width = gtk_widget_get_allocated_width(widget);
     guint height = gtk_widget_get_allocated_height(widget);
-    double current_percentage = battery_info.percentage;
-    guint32 current_state = battery_info.state;
+    double current_percentage = info->percentage;
+    guint32 current_state = info->state;
     double bw = 22.0;
     double bh = 10.0;
     double bx = (width - bw - 2.0) / 2.0;
@@ -135,8 +122,6 @@ static gboolean on_draw_battery(GtkWidget *widget, cairo_t *cr, gpointer data) {
     double inner_h = bh - (gap * 2) - 1.0;
     double fill_w = inner_max_w * (current_percentage / 100.0);
     gboolean charging = (current_state == 1 || current_state == 4 || current_state == 5);
-
-    (void)data;
 
     if (fill_w < 1.0 && current_percentage > 0.0) fill_w = 1.0;
 
@@ -174,87 +159,6 @@ static gboolean on_draw_battery(GtkWidget *widget, cairo_t *cr, gpointer data) {
     }
 
     return FALSE;
-}
-
-static void update_battery_ui(GVariant *properties) {
-    GVariant *value;
-
-    if (!properties) return;
-
-    value = g_variant_lookup_value(properties, "Percentage", G_VARIANT_TYPE_DOUBLE);
-    if (value) {
-        battery_info.percentage = g_variant_get_double(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "State", G_VARIANT_TYPE_UINT32);
-    if (value) {
-        battery_info.state = g_variant_get_uint32(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "Energy", G_VARIANT_TYPE_DOUBLE);
-    if (value) {
-        battery_info.energy = g_variant_get_double(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "EnergyFull", G_VARIANT_TYPE_DOUBLE);
-    if (value) {
-        battery_info.energy_full = g_variant_get_double(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "EnergyFullDesign", G_VARIANT_TYPE_DOUBLE);
-    if (value) {
-        battery_info.energy_full_design = g_variant_get_double(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "Capacity", G_VARIANT_TYPE_DOUBLE);
-    if (value) {
-        battery_info.capacity = g_variant_get_double(value);
-        g_variant_unref(value);
-    }
-
-    value = g_variant_lookup_value(properties, "UpdateTime", G_VARIANT_TYPE_UINT64);
-    if (value) {
-        battery_info.update_time = g_variant_get_uint64(value);
-        g_variant_unref(value);
-    }
-
-    update_battery_details_ui();
-}
-
-static void on_upower_properties_changed(GDBusProxy *proxy,
-                                         GVariant *changed_properties,
-                                         GStrv invalidated_properties,
-                                         gpointer user_data) {
-    (void)proxy;
-    (void)invalidated_properties;
-    (void)user_data;
-    update_battery_ui(changed_properties);
-}
-
-static void fetch_initial_battery_state(void) {
-    GVariant *result;
-    GVariant *props;
-
-    if (!upower_proxy) return;
-
-    result = g_dbus_proxy_call_sync(upower_proxy,
-                                    "org.freedesktop.DBus.Properties.GetAll",
-                                    g_variant_new("(s)", UPOWER_IFACE),
-                                    G_DBUS_CALL_FLAGS_NONE,
-                                    -1,
-                                    NULL,
-                                    NULL);
-    if (!result) return;
-
-    props = g_variant_get_child_value(result, 0);
-    update_battery_ui(props);
-    g_variant_unref(props);
-    g_variant_unref(result);
 }
 
 static GtkWidget *create_info_row(const char *title, GtkWidget **value_label) {
@@ -356,7 +260,8 @@ static void on_battery_button_clicked(GtkButton *button, gpointer user_data) {
     (void)button;
     (void)user_data;
 
-    update_battery_details_ui();
+    const BatteryInfo *info = battery_backend_get_info();
+    update_battery_details_ui(info);
     if (!battery_popup) return;
 
     if (battery_popup_visible) {
@@ -367,23 +272,6 @@ static void on_battery_button_clicked(GtkButton *button, gpointer user_data) {
         gtk_widget_show_all(battery_popup);
         battery_popup_visible = TRUE;
     }
-}
-
-static void on_proxy_ready(GObject *source_object, GAsyncResult *res, gpointer user_data) {
-    GError *error = NULL;
-
-    (void)source_object;
-    (void)user_data;
-    upower_proxy = g_dbus_proxy_new_for_bus_finish(res, &error);
-
-    if (error) {
-        g_printerr("Error creating UPower proxy: %s\n", error->message);
-        g_error_free(error);
-        return;
-    }
-
-    g_signal_connect(upower_proxy, "g-properties-changed", G_CALLBACK(on_upower_properties_changed), NULL);
-    fetch_initial_battery_state();
 }
 
 GtkWidget *get_battery_widget(void) {
@@ -404,15 +292,7 @@ GtkWidget *get_battery_widget(void) {
     create_battery_popup_window();
     g_signal_connect(battery_button, "clicked", G_CALLBACK(on_battery_button_clicked), NULL);
 
-    g_dbus_proxy_new_for_bus(G_BUS_TYPE_SYSTEM,
-                             G_DBUS_PROXY_FLAGS_NONE,
-                             NULL,
-                             UPOWER_BUS,
-                             UPOWER_PATH,
-                             UPOWER_IFACE,
-                             NULL,
-                             on_proxy_ready,
-                             NULL);
+    battery_backend_init(update_battery_details_ui);
 
     return box;
 }

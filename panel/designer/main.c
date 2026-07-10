@@ -13,7 +13,7 @@
 #include "config_io.h"
 
 /* panel-plugin-api.h lives one level up */
-#include "../panel-plugin-api.h"
+#include "../include/panel-plugin-api.h"
 
 #define TITLE   "AetherShell Panel Designer"
 #define W       1200

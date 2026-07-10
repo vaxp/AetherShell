@@ -2,7 +2,6 @@
 #define AETHER_SNI_BACKEND_H
 
 #include <glib.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
 
 G_BEGIN_DECLS
 
@@ -33,13 +32,21 @@ void sni_item_secondary_activate(SniItem *item, int x, int y);
 void sni_item_context_menu(SniItem *item, int x, int y);
 void sni_item_scroll(SniItem *item, int delta, const char *orientation);
 
+typedef struct {
+    int width;
+    int height;
+    int rowstride;
+    unsigned char *data; /* RGBA bytes */
+} SniIconData;
+
 /**
  * Property getters for the UI to read item data.
  */
 const char* sni_item_get_service(SniItem *item);
 const char* sni_item_get_title(SniItem *item);
 const char* sni_item_get_icon_name(SniItem *item);
-GdkPixbuf*  sni_item_get_icon_pixbuf(SniItem *item);
+SniIconData* sni_item_get_icon_data(SniItem *item);
+void sni_icon_data_free(SniIconData *icon_data);
 gboolean    sni_item_is_passive(SniItem *item);
 gboolean    sni_item_is_menu(SniItem *item);
 gpointer    sni_item_get_dbusmenu_root(SniItem *item); /* returns DbusmenuMenuitem* */

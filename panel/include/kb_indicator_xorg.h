@@ -1,7 +1,7 @@
 #ifndef KB_INDICATOR_XORG_H
 #define KB_INDICATOR_XORG_H
 
-#include <gtk/gtk.h>
+#include <glib.h>
 #include <X11/Xlib.h>
 
 typedef struct {
@@ -11,7 +11,7 @@ typedef struct {
     char current_layout[16];
 } XorgKeyboardState;
 
-gboolean xorg_keyboard_init(XorgKeyboardState *state);
+gboolean xorg_keyboard_init(XorgKeyboardState *state, Display *dpy);
 gboolean xorg_keyboard_refresh(XorgKeyboardState *state);
 
 #endif

@@ -123,7 +123,7 @@ static GVariant* get_cached_or_fetched_property(SniItem *item, const gchar *prop
     return inner;
 }
 
-static GdkPixbuf* pixbuf_from_sni_data(const guchar *data, gsize len, gint w, gint h) {
+static SniIconData* icon_data_from_sni_data(const guchar *data, gsize len, gint w, gint h) {
     if (!data || w <= 0 || h <= 0) return NULL;
     gsize expected = (gsize)w * (gsize)h * 4;
     if (len < expected) return NULL;
@@ -136,15 +136,21 @@ static GdkPixbuf* pixbuf_from_sni_data(const guchar *data, gsize len, gint w, gi
         rgba[i + 2] = data[i + 3];
         rgba[i + 3] = a;
     }
-    return gdk_pixbuf_new_from_data(rgba, GDK_COLORSPACE_RGB, TRUE, 8, w, h, w * 4, (GdkPixbufDestroyNotify)g_free, NULL);
+    
+    SniIconData *icon = g_new(SniIconData, 1);
+    icon->width = w;
+    icon->height = h;
+    icon->rowstride = w * 4;
+    icon->data = rgba;
+    return icon;
 }
 
-static GdkPixbuf* pixbuf_from_variant(GVariant *variant) {
+static SniIconData* icon_data_from_variant(GVariant *variant) {
     if (!variant) return NULL;
     GVariantIter iter;
     GVariant *child = NULL;
     gint best_area = -1;
-    GdkPixbuf *best = NULL;
+    SniIconData *best = NULL;
 
     g_variant_iter_init(&iter, variant);
     while ((child = g_variant_iter_next_value(&iter))) {
@@ -154,14 +160,18 @@ static GdkPixbuf* pixbuf_from_variant(GVariant *variant) {
         if (bytes) {
             gsize len = 0;
             const guchar *data = g_variant_get_fixed_array(bytes, &len, sizeof(guchar));
-            GdkPixbuf *pixbuf = pixbuf_from_sni_data(data, len, width, height);
+            SniIconData *icon = icon_data_from_sni_data(data, len, width, height);
             gint area = width * height;
-            if (pixbuf && area > best_area) {
-                if (best) g_object_unref(best);
-                best = pixbuf;
+            if (icon && area > best_area) {
+                if (best) {
+                    g_free(best->data);
+                    g_free(best);
+                }
+                best = icon;
                 best_area = area;
-            } else if (pixbuf) {
-                g_object_unref(pixbuf);
+            } else if (icon) {
+                g_free(icon->data);
+                g_free(icon);
             }
             g_variant_unref(bytes);
         }
@@ -655,7 +665,7 @@ const char* sni_item_get_icon_name(SniItem *item) {
     return ret;
 }
 
-GdkPixbuf* sni_item_get_icon_pixbuf(SniItem *item) {
+SniIconData* sni_item_get_icon_data(SniItem *item) {
     if (!item) return NULL;
 
     GVariant *status = get_cached_or_fetched_property(item, "Status");
@@ -664,13 +674,20 @@ GdkPixbuf* sni_item_get_icon_pixbuf(SniItem *item) {
     gchar *pixmap_prop = g_strdup_printf("%sPixmap", icon_prefix);
 
     GVariant *icon_pixmap = get_cached_or_fetched_property(item, pixmap_prop);
-    GdkPixbuf *pixbuf = pixbuf_from_variant(icon_pixmap);
+    SniIconData *icon = icon_data_from_variant(icon_pixmap);
 
     if (icon_pixmap) g_variant_unref(icon_pixmap);
     if (status) g_variant_unref(status);
     g_free(pixmap_prop);
 
-    return pixbuf;
+    return icon;
+}
+
+void sni_icon_data_free(SniIconData *icon_data) {
+    if (icon_data) {
+        g_free(icon_data->data);
+        g_free(icon_data);
+    }
 }
 
 gboolean sni_item_is_passive(SniItem *item) {

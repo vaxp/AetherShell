@@ -21,8 +21,15 @@ static void update_ui_item(TrayUiItem *ui) {
     gtk_widget_set_tooltip_text(ui->button, title ? title : sni_item_get_service(ui->item));
 
     // Update icon
-    GdkPixbuf *pixbuf = sni_item_get_icon_pixbuf(ui->item);
-    if (pixbuf) {
+    SniIconData *icon_data = sni_item_get_icon_data(ui->item);
+    if (icon_data) {
+        GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(
+            icon_data->data, GDK_COLORSPACE_RGB, TRUE, 8,
+            icon_data->width, icon_data->height, icon_data->rowstride,
+            (GdkPixbufDestroyNotify)g_free, NULL);
+        
+        g_free(icon_data); /* Free struct only, data is owned by pixbuf */
+
         GdkPixbuf *scaled = gdk_pixbuf_scale_simple(pixbuf, 16, 16, GDK_INTERP_BILINEAR);
         gtk_image_set_from_pixbuf(GTK_IMAGE(ui->image), scaled ? scaled : pixbuf);
         if (scaled) g_object_unref(scaled);

@@ -1,5 +1,5 @@
 #include "workspaces_xorg.h"
-#include <gdk/gdkx.h>
+
 #include <X11/Xatom.h>
 #include <string.h>
 
@@ -32,17 +32,11 @@ static int get_x11_prop_int(Display *dpy, Window win, const char *prop_name) {
     return value;
 }
 
-gboolean xorg_workspaces_init(XorgWorkspaceState *state) {
-    GdkDisplay *gdk_dpy;
-
-    if (!state) return FALSE;
+gboolean xorg_workspaces_init(XorgWorkspaceState *state, Display *dpy) {
+    if (!state || !dpy) return FALSE;
     memset(state, 0, sizeof(*state));
 
-    gdk_dpy = gdk_display_get_default();
-    if (!gdk_dpy || !GDK_IS_X11_DISPLAY(gdk_dpy)) return FALSE;
-
-    state->dpy = gdk_x11_display_get_xdisplay(gdk_dpy);
-    if (!state->dpy) return FALSE;
+    state->dpy = dpy;
 
     state->root = DefaultRootWindow(state->dpy);
     state->num_desktops = get_x11_prop_int(state->dpy, state->root, "_NET_NUMBER_OF_DESKTOPS");

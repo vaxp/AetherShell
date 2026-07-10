@@ -17,6 +17,13 @@
 #include <glib/gstdio.h>
 #include <time.h>
 
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
+#ifdef GDK_WINDOWING_X11
+#include <gdk/gdkx.h>
+#endif
+
 #include "plugin_engine.h"
 #include "builtin_plugins.h"
 #include "layout_builder.h"
@@ -418,8 +425,23 @@ int main(int argc, char *argv[])
     g_setenv("NO_AT_BRIDGE", "1", TRUE);
     gtk_init(&argc, &argv);
 
+    struct wl_display *wl_dpy = NULL;
+    void *x11_dpy = NULL;
+    GdkDisplay *gdk_dpy = gdk_display_get_default();
+
+#ifdef GDK_WINDOWING_WAYLAND
+    if (gdk_dpy && GDK_IS_WAYLAND_DISPLAY(gdk_dpy)) {
+        wl_dpy = gdk_wayland_display_get_wl_display(gdk_dpy);
+    }
+#endif
+#ifdef GDK_WINDOWING_X11
+    if (gdk_dpy && GDK_IS_X11_DISPLAY(gdk_dpy)) {
+        x11_dpy = gdk_x11_display_get_xdisplay(gdk_dpy);
+    }
+#endif
+
     panel_window_backend_detect();
-    panel_compositor_backend_init();
+    panel_compositor_backend_init(wl_dpy, x11_dpy);
 
     /* Stash executable path for crash-recovery restart */
     g_executable_path = g_file_read_link("/proc/self/exe", NULL);

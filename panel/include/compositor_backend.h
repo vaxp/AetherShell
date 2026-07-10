@@ -1,7 +1,9 @@
 #ifndef COMPOSITOR_BACKEND_H
 #define COMPOSITOR_BACKEND_H
 
-#include <gtk/gtk.h>
+#include <glib.h>
+
+struct wl_display;
 
 typedef struct {
     int output_id;
@@ -19,7 +21,7 @@ typedef struct {
 typedef void (*PanelWorkspaceStateCallback)(const PanelWorkspaceState *state, gpointer user_data);
 typedef void (*PanelKeyboardStateCallback)(const PanelKeyboardState *state, gpointer user_data);
 
-void panel_compositor_backend_init(void);
+void panel_compositor_backend_init(struct wl_display *wl_dpy, void *x11_dpy);
 const char *panel_compositor_backend_name(void);
 void panel_compositor_backend_set_workspace_callback(PanelWorkspaceStateCallback cb, gpointer user_data);
 void panel_compositor_backend_set_keyboard_callback(PanelKeyboardStateCallback cb, gpointer user_data);

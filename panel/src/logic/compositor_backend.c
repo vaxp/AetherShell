@@ -11,9 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <wayland-client.h>
-#ifdef GDK_WINDOWING_WAYLAND
-#include <gdk/gdkwayland.h>
-#endif
+
 
 typedef enum {
     COMPOSITOR_BACKEND_NONE = 0,
@@ -570,18 +568,10 @@ static const struct wl_registry_listener s_registry_listener = {
     .global_remove = on_registry_global_remove,
 };
 
-static gboolean init_aether_backend(void) {
-#ifdef GDK_WINDOWING_WAYLAND
-    GdkDisplay *gdk_display;
+static gboolean init_aether_backend(struct wl_display *wl_dpy) {
+    if (!wl_dpy) return FALSE;
 
-    if (!panel_window_backend_is_wayland()) return FALSE;
-
-    gdk_display = gdk_display_get_default();
-    if (!gdk_display || !GDK_IS_WAYLAND_DISPLAY(gdk_display)) return FALSE;
-
-    s_wl_display = gdk_wayland_display_get_wl_display(gdk_display);
-    if (!s_wl_display) return FALSE;
-
+    s_wl_display = wl_dpy;
     s_wl_registry = wl_display_get_registry(s_wl_display);
     if (!s_wl_registry) return FALSE;
 
@@ -598,9 +588,6 @@ static gboolean init_aether_backend(void) {
     if (!s_aether_manager) return FALSE;
     wl_display_roundtrip(s_wl_display);
     return TRUE;
-#else
-    return FALSE;
-#endif
 }
 
 static gboolean refresh_xorg_workspaces(gpointer user_data) {
@@ -636,11 +623,11 @@ static gboolean refresh_xorg_keyboard(gpointer user_data) {
     return G_SOURCE_CONTINUE;
 }
 
-void panel_compositor_backend_init(void) {
+void panel_compositor_backend_init(struct wl_display *wl_dpy, void *x11_dpy) {
     if (s_initialized) return;
     s_initialized = TRUE;
 
-    if (init_aether_backend()) {
+    if (init_aether_backend(wl_dpy)) {
         if (s_aether_manager_v2) {
             s_backend = COMPOSITOR_BACKEND_AETHER_V2;
         } else {
@@ -657,12 +644,12 @@ void panel_compositor_backend_init(void) {
         return;
     }
 
-    {
-        gboolean have_xorg_workspaces = xorg_workspaces_init(&s_xorg_workspace_state);
-        gboolean have_xorg_keyboard = xorg_keyboard_init(&s_xorg_keyboard_state);
+    if (x11_dpy) {
+        gboolean have_xorg_workspaces = xorg_workspaces_init(&s_xorg_workspace_state, (Display *)x11_dpy);
+        gboolean have_xorg_keyboard = xorg_keyboard_init(&s_xorg_keyboard_state, (Display *)x11_dpy);
 
         if (have_xorg_workspaces || have_xorg_keyboard) {
-        s_backend = COMPOSITOR_BACKEND_X11;
+            s_backend = COMPOSITOR_BACKEND_X11;
 
             if (have_xorg_workspaces && s_xorg_workspace_state.dpy) {
                 s_xorg_workspace_poll_id = g_timeout_add(150, refresh_xorg_workspaces, NULL);
@@ -707,17 +694,13 @@ void panel_compositor_backend_set_keyboard_callback(PanelKeyboardStateCallback c
 gboolean panel_compositor_backend_set_workspace(int output_id, int x, int y) {
     if (s_backend == COMPOSITOR_BACKEND_AETHER_V2 && s_aether_output_v2) {
         zaether_ipc_output_v2_set_tags(s_aether_output_v2, 1 << x, 0);
-#ifdef GDK_WINDOWING_WAYLAND
         if (s_wl_display) wl_display_flush(s_wl_display);
-#endif
         return TRUE;
     }
 
     if (s_backend == COMPOSITOR_BACKEND_AETHER && s_aether_manager) {
         aether_ipc_manager_v1_set_workspace(s_aether_manager, output_id, x, y);
-#ifdef GDK_WINDOWING_WAYLAND
         if (s_wl_display) wl_display_flush(s_wl_display);
-#endif
         return TRUE;
     }
 

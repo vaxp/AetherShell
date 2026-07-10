@@ -1,5 +1,5 @@
 #include "kb_indicator_xorg.h"
-#include <gdk/gdkx.h>
+
 #include <X11/XKBlib.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -62,23 +62,18 @@ static void get_group_label(Display *xdisplay, int group, char *out, size_t out_
     XkbFreeKeyboard(desc, 0, True);
 }
 
-gboolean xorg_keyboard_init(XorgKeyboardState *state) {
-    GdkDisplay *gdk_display;
+gboolean xorg_keyboard_init(XorgKeyboardState *state, Display *dpy) {
     int opcode;
     int error;
     int major;
     int minor;
     XkbStateRec xkb_state;
 
-    if (!state) return FALSE;
+    if (!state || !dpy) return FALSE;
     memset(state, 0, sizeof(*state));
     state->current_group_index = -1;
 
-    gdk_display = gdk_display_get_default();
-    if (!gdk_display || !GDK_IS_X11_DISPLAY(gdk_display)) return FALSE;
-
-    state->xdisplay = gdk_x11_display_get_xdisplay(gdk_display);
-    if (!state->xdisplay) return FALSE;
+    state->xdisplay = dpy;
 
     if (!XkbQueryExtension(state->xdisplay, &opcode, &state->xkb_event_type, &error, &major, &minor)) {
         return FALSE;

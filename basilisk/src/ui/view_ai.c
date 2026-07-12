@@ -12,8 +12,7 @@ typedef struct {
     GtkWidget *current_ai_textview;
     GtkWidget *scroll;
     GtkWidget *entry;
-    GtkWidget *spinner;
-    GtkWidget *status_label;
+    GtkWidget *thinking_row;
     gchar *response;
     gint char_index;
     guint type_timer;
@@ -152,6 +151,13 @@ static gboolean vaxp_anim_tick(gpointer user_data) {
     AiChatData *data = (AiChatData *)user_data;
     data->anim_t += 0.045;
     if (data->header_canvas) gtk_widget_queue_draw(data->header_canvas);
+    if (data->thinking_row) {
+        GList *children = gtk_container_get_children(GTK_CONTAINER(data->thinking_row));
+        if (g_list_length(children) >= 2) {
+            gtk_widget_queue_draw(GTK_WIDGET(g_list_nth_data(children, 1)));
+        }
+        g_list_free(children);
+    }
     return TRUE;
 }
 
@@ -271,16 +277,76 @@ static void add_chat_bubble(AiChatData *data, const gchar *text, gboolean is_use
     auto_scroll(data);
 }
 
+static gboolean vaxp_thinking_dots_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+    AiChatData *data = (AiChatData *)user_data;
+    int h = gtk_widget_get_allocated_height(widget);
+    double x = 0, y = h / 2.0;
+    for (int i = 0; i < 3; i++) {
+        double delay = i * 0.15;
+        double sec = fmod(data->anim_t - delay + 1000.0, 1.1);
+        double opacity = 0.25, ty = 0.0;
+        if (sec < 0.66) {
+            double p = sec / 0.66;
+            double val = sin(p * G_PI);
+            opacity = 0.25 + 0.75 * val;
+            ty = -3.0 * val;
+        }
+        cairo_set_source_rgba(cr, 0.61, 0.53, 0.96, opacity);
+        cairo_arc(cr, x + i * 9.0 + 2.5, y + ty, 2.5, 0, 2 * G_PI);
+        cairo_fill(cr);
+    }
+    return FALSE;
+}
+
+static void remove_thinking_row(AiChatData *data) {
+    if (data->thinking_row) {
+        gtk_widget_destroy(data->thinking_row);
+        data->thinking_row = NULL;
+    }
+}
+
+static void add_thinking_row(AiChatData *data, const gchar *label_text) {
+    if (data->thinking_row) return;
+    
+    data->thinking_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_margin_top(data->thinking_row, 4);
+    gtk_widget_set_margin_bottom(data->thinking_row, 4);
+    gtk_widget_set_margin_start(data->thinking_row, 4);
+    gtk_widget_set_margin_end(data->thinking_row, 4);
+    
+    GtkWidget *label = gtk_label_new(label_text);
+    gtk_style_context_add_class(gtk_widget_get_style_context(label), "thinking-label");
+    
+    GtkWidget *dots = gtk_drawing_area_new();
+    gtk_widget_set_size_request(dots, 23, 10);
+    gtk_widget_set_valign(dots, GTK_ALIGN_CENTER);
+    g_signal_connect(dots, "draw", G_CALLBACK(vaxp_thinking_dots_draw), data);
+    
+    gtk_box_pack_start(GTK_BOX(data->thinking_row), label, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(data->thinking_row), dots, FALSE, FALSE, 0);
+    
+    gtk_box_pack_start(GTK_BOX(data->message_list_box), data->thinking_row, FALSE, FALSE, 8);
+    gtk_widget_show_all(data->thinking_row);
+    auto_scroll(data);
+}
+
 static void fetch_response_hidden(AiChatData *data, const gchar *query);
 
 static gboolean typewriter_tick(gpointer user_data) {
     AiChatData *data = (AiChatData *)user_data;
-    gchar *p = data->response ? data->response + data->char_index : NULL;
+    
+    if (!data->response) return TRUE;
+    
+    if (data->thinking_row && strlen(data->response) > 0) {
+        remove_thinking_row(data);
+        add_chat_bubble(data, "", FALSE);
+    }
+    
+    gchar *p = data->response + data->char_index;
     
     if (!p || *p == '\0') {
         if (data->is_done) {
             data->type_timer = 0;
-            gtk_label_set_text(GTK_LABEL(data->status_label), "Done.");
             return FALSE;
         }
         return TRUE;
@@ -316,8 +382,10 @@ static gboolean typewriter_tick(gpointer user_data) {
             data->in_bg_execute_block = FALSE;
             data->char_index += 13;
             
-            GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->current_ai_textview));
-            gtk_text_buffer_set_text(buf, "", -1);
+            GtkWidget *align = gtk_widget_get_parent(data->current_ai_textview);
+            gtk_widget_destroy(align);
+            data->current_ai_textview = NULL;
+            data->action_box = NULL;
             
             gchar *stdout_txt = run_bg_command(data->extracted_bg_command);
             gchar *hidden_query = g_strdup_printf(
@@ -433,7 +501,6 @@ static void start_typewriter(AiChatData *data) {
     data->in_bold = FALSE;
     data->skip_until_newline = FALSE;
     data->is_done = FALSE;
-    gtk_label_set_text(GTK_LABEL(data->status_label), "Typing...");
     data->type_timer = g_timeout_add(10, typewriter_tick, data);
 }
 
@@ -443,19 +510,17 @@ static void on_ai_response_chunk(const gchar *chunk, gboolean is_done, gpointer 
     if (data->ignore_rest) {
         if (is_done) {
             data->is_done = TRUE;
-            gtk_spinner_stop(GTK_SPINNER(data->spinner));
-            gtk_label_set_text(GTK_LABEL(data->status_label), "Done.");
         }
         return;
     }
     
-    if (chunk) {
-        if (data->response) {
-            gchar *tmp = g_strconcat(data->response, chunk, NULL);
-            g_free(data->response);
-            data->response = tmp;
-        } else {
+    if (chunk && strlen(chunk) > 0) {
+        if (!data->response) {
             data->response = g_strdup(chunk);
+        } else {
+            gchar *old = data->response;
+            data->response = g_strconcat(old, chunk, NULL);
+            g_free(old);
         }
     }
     
@@ -473,18 +538,20 @@ static void on_ai_response_chunk(const gchar *chunk, gboolean is_done, gpointer 
             *ad_marker = '\0';
         }
         
-        GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->current_ai_textview));
-        GtkTextIter end_iter, match_start, match_end;
-        gtk_text_buffer_get_end_iter(buf, &end_iter);
-        if (gtk_text_iter_backward_search(&end_iter, "---", 0, &match_start, &match_end, NULL)) {
-            while (gtk_text_iter_backward_char(&match_start)) {
-                gunichar c = gtk_text_iter_get_char(&match_start);
-                if (c != '\n' && c != '\r' && c != ' ') {
-                    gtk_text_iter_forward_char(&match_start);
-                    break;
+        if (data->current_ai_textview) {
+            GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->current_ai_textview));
+            GtkTextIter end_iter, match_start, match_end;
+            gtk_text_buffer_get_end_iter(buf, &end_iter);
+            if (gtk_text_iter_backward_search(&end_iter, "---", 0, &match_start, &match_end, NULL)) {
+                while (gtk_text_iter_backward_char(&match_start)) {
+                    gunichar c = gtk_text_iter_get_char(&match_start);
+                    if (c != '\n' && c != '\r' && c != ' ') {
+                        gtk_text_iter_forward_char(&match_start);
+                        break;
+                    }
                 }
+                gtk_text_buffer_delete(buf, &match_start, &end_iter);
             }
-            gtk_text_buffer_delete(buf, &match_start, &end_iter);
         }
         
         if (data->response && data->char_index > (gint)strlen(data->response)) {
@@ -494,10 +561,6 @@ static void on_ai_response_chunk(const gchar *chunk, gboolean is_done, gpointer 
     
     if (is_done) {
         data->is_done = TRUE;
-        gtk_spinner_stop(GTK_SPINNER(data->spinner));
-        if (!data->response || strlen(data->response) == 0) {
-            gtk_label_set_text(GTK_LABEL(data->status_label), "No response.");
-        }
     } else if (data->type_timer == 0 && data->response) {
         start_typewriter(data);
     }
@@ -515,8 +578,7 @@ static void fetch_response_hidden(AiChatData *data, const gchar *query) {
     data->in_bg_execute_block = FALSE;
     data->ignore_rest = FALSE;
     
-    gtk_label_set_text(GTK_LABEL(data->status_label), "VAI is analyzing results...");
-    gtk_spinner_start(GTK_SPINNER(data->spinner));
+    add_thinking_row(data, "VAI يحلل النتائج...");
     
     ai_ctrl_fetch_response(query, on_ai_response_chunk, data);
 }
@@ -537,10 +599,7 @@ static void fetch_response(AiChatData *data, const gchar *query) {
     data->ignore_rest = FALSE;
     
     add_chat_bubble(data, query, TRUE);
-    add_chat_bubble(data, "", FALSE); // Create empty AI bubble
-    
-    gtk_label_set_text(GTK_LABEL(data->status_label), "VAI is thinking...");
-    gtk_spinner_start(GTK_SPINNER(data->spinner));
+    add_thinking_row(data, "VAI يفكّر");
     
     ai_ctrl_fetch_response(query, on_ai_response_chunk, data);
 }
@@ -605,11 +664,9 @@ void view_ai_show(const gchar *initial_query) {
             "#ai-response-scroll { background: rgba(255,255,255,0.015); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }"
             "textview.ai-bubble text { background: transparent; }"
             "textview.ai-bubble { background: transparent; font-family: 'Tajawal', sans-serif; font-size: 14.5px; color: #eef1f6; }"
-            "box.user-bubble { background: transparent; }"
             "box.user-bubble label { font-family: 'Tajawal', sans-serif; color: #eef1f6; font-size: 14.5px; }"
-            "#ai-footer { padding: 8px 4px; }"
-            "#ai-status { font-family: 'Chakra Petch', sans-serif; color: #5c6478; font-size: 11.5px; letter-spacing: 0.3px; }"
-            "spinner { color: #9c86f5; }", -1, NULL);
+            ".thinking-label { font-family: 'Chakra Petch', sans-serif; font-size: 12px; color: #5c6478; letter-spacing: 0.3px; }"
+            "#ai-hint { text-align: center; font-size: 10.5px; color: #5c6478; margin-top: 10px; margin-bottom: 5px; font-family: 'Chakra Petch', sans-serif; letter-spacing: 0.4px; }", -1, NULL);
         gtk_style_context_add_provider_for_screen(gdk_screen_get_default(), GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_USER + 100);
         g_object_unref(css);
         css_applied = TRUE;
@@ -681,22 +738,12 @@ void view_ai_show(const gchar *initial_query) {
     data->message_list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(data->message_list_box), 12);
     
-    // In GTK3, GtkBox inside ScrolledWindow needs to be added via Viewport if it doesn't support scrolling natively
     GtkWidget *viewport = gtk_viewport_new(NULL, NULL);
     gtk_viewport_set_shadow_type(GTK_VIEWPORT(viewport), GTK_SHADOW_NONE);
     gtk_container_add(GTK_CONTAINER(viewport), data->message_list_box);
     gtk_container_add(GTK_CONTAINER(scroll), viewport);
     
     gtk_box_pack_start(GTK_BOX(content), scroll, TRUE, TRUE, 0);
-    
-    GtkWidget *footer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_widget_set_name(footer, "ai-footer");
-    data->spinner = gtk_spinner_new();
-    data->status_label = gtk_label_new("اضغط Enter لسؤال VAI…");
-    gtk_widget_set_name(data->status_label, "ai-status");
-    gtk_box_pack_start(GTK_BOX(footer), data->spinner, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(footer), data->status_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), footer, FALSE, FALSE, 0);
     
     GtkWidget *entry_wrap = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_name(entry_wrap, "ai-entry-wrap");
@@ -719,6 +766,10 @@ void view_ai_show(const gchar *initial_query) {
     gtk_box_pack_start(GTK_BOX(entry_wrap), data->entry, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(entry_wrap), send_btn, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(content), entry_wrap, FALSE, FALSE, 0);
+    
+    GtkWidget *hint = gtk_label_new("VAI · نموذج تجريبي محلي — قد يخطئ أحياناً");
+    gtk_widget_set_name(hint, "ai-hint");
+    gtk_box_pack_start(GTK_BOX(content), hint, FALSE, FALSE, 0);
     
     g_signal_connect(data->window, "key-press-event", G_CALLBACK(on_ai_key_press), data);
     g_signal_connect(data->window, "destroy", G_CALLBACK(on_window_destroy), data);

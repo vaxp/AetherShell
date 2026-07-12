@@ -21,7 +21,11 @@ typedef struct {
     gboolean is_done;
     gboolean in_execute_block;
     gchar *extracted_command;
+    gboolean in_bg_execute_block;
+    gchar *extracted_bg_command;
+    gchar *last_user_query;
     GtkWidget *action_box;
+    GtkTextMark *ai_response_start_mark;
 } AiChatData;
 
 static void on_ai_window_realize_disable_decorations(GtkWidget *widget, gpointer user_data) {
@@ -53,6 +57,31 @@ static void show_execute_button(AiChatData *data, const gchar *cmd) {
     gtk_box_pack_start(GTK_BOX(data->action_box), btn, FALSE, FALSE, 0);
     gtk_widget_show_all(data->action_box);
 }
+
+static gchar *run_bg_command(const gchar *cmd) {
+    gchar *std_out = NULL;
+    gchar *std_err = NULL;
+    gint exit_status = 0;
+    
+    gchar *full_cmd = g_strdup_printf("bash -c \"%s\"", cmd);
+    g_spawn_command_line_sync(full_cmd, &std_out, &std_err, &exit_status, NULL);
+    g_free(full_cmd);
+    
+    gchar *result = NULL;
+    if (std_out && strlen(std_out) > 0) {
+        result = g_strdup(std_out);
+    } else if (std_err && strlen(std_err) > 0) {
+        result = g_strdup(std_err);
+    } else {
+        result = g_strdup("Command executed with no output.");
+    }
+    
+    if (std_out) g_free(std_out);
+    if (std_err) g_free(std_err);
+    return result;
+}
+
+static void fetch_response_hidden(AiChatData *data, const gchar *query);
 
 static gboolean typewriter_tick(gpointer user_data) {
     AiChatData *data = (AiChatData *)user_data;
@@ -91,11 +120,60 @@ static gboolean typewriter_tick(gpointer user_data) {
         return TRUE;
     }
 
+    if (data->in_bg_execute_block) {
+        if (!data->is_done && strlen(p) < 13) return TRUE;
+        if (g_str_has_prefix(p, "</bg_execute>")) {
+            data->in_bg_execute_block = FALSE;
+            data->char_index += 13;
+            
+            GtkTextBuffer *buf = gtk_text_view_get_buffer(GTK_TEXT_VIEW(data->text_view));
+            GtkTextIter start_iter, end_iter;
+            if (data->ai_response_start_mark) {
+                gtk_text_buffer_get_iter_at_mark(buf, &start_iter, data->ai_response_start_mark);
+                gtk_text_buffer_get_end_iter(buf, &end_iter);
+                gtk_text_buffer_delete(buf, &start_iter, &end_iter);
+            }
+            
+            gchar *stdout_txt = run_bg_command(data->extracted_bg_command);
+            gchar *hidden_query = g_strdup_printf(
+                "[SYSTEM INJECTION] The user asked: '%s'. "
+                "To answer, we ran a background command which returned:\n%s\n"
+                "Now, provide the final answer to the user based ONLY on this output. "
+                "CRITICAL: You MUST answer in the EXACT SAME LANGUAGE the user used in their original question.", 
+                data->last_user_query ? data->last_user_query : "", stdout_txt);
+            
+            fetch_response_hidden(data, hidden_query);
+            
+            g_free(hidden_query);
+            g_free(stdout_txt);
+            return FALSE;
+        }
+        
+        gchar *next = g_utf8_next_char(p);
+        gint len = next - p;
+        gchar *chunk = g_strndup(p, len);
+        if (data->extracted_bg_command) {
+            gchar *tmp = g_strconcat(data->extracted_bg_command, chunk, NULL);
+            g_free(data->extracted_bg_command);
+            data->extracted_bg_command = tmp;
+        } else {
+            data->extracted_bg_command = g_strdup(chunk);
+        }
+        g_free(chunk);
+        data->char_index += len;
+        return TRUE;
+    }
+
     if (*p == '<') {
-        if (!data->is_done && strlen(p) < 10) return TRUE;
+        if (!data->is_done && strlen(p) < 13) return TRUE;
         if (g_str_has_prefix(p, "<execute>")) {
             data->in_execute_block = TRUE;
             data->char_index += 9;
+            return TRUE;
+        }
+        if (g_str_has_prefix(p, "<bg_execute>")) {
+            data->in_bg_execute_block = TRUE;
+            data->char_index += 12;
             return TRUE;
         }
     }
@@ -199,7 +277,7 @@ static void on_ai_response_chunk(const gchar *chunk, gboolean is_done, gpointer 
     }
 }
 
-static void fetch_response(AiChatData *data, const gchar *query) {
+static void fetch_response_hidden(AiChatData *data, const gchar *query) {
     if (!query || strlen(query) == 0) return;
     
     if (data->response) { g_free(data->response); data->response = NULL; }
@@ -207,6 +285,28 @@ static void fetch_response(AiChatData *data, const gchar *query) {
     
     if (data->extracted_command) { g_free(data->extracted_command); data->extracted_command = NULL; }
     data->in_execute_block = FALSE;
+    if (data->extracted_bg_command) { g_free(data->extracted_bg_command); data->extracted_bg_command = NULL; }
+    data->in_bg_execute_block = FALSE;
+    
+    gtk_label_set_text(GTK_LABEL(data->status_label), "VAI is analyzing results...");
+    gtk_spinner_start(GTK_SPINNER(data->spinner));
+    
+    ai_ctrl_fetch_response(query, on_ai_response_chunk, data);
+}
+
+static void fetch_response(AiChatData *data, const gchar *query) {
+    if (!query || strlen(query) == 0) return;
+    
+    if (data->last_user_query) { g_free(data->last_user_query); data->last_user_query = NULL; }
+    data->last_user_query = g_strdup(query);
+    
+    if (data->response) { g_free(data->response); data->response = NULL; }
+    if (data->type_timer > 0) { g_source_remove(data->type_timer); data->type_timer = 0; }
+    
+    if (data->extracted_command) { g_free(data->extracted_command); data->extracted_command = NULL; }
+    data->in_execute_block = FALSE;
+    if (data->extracted_bg_command) { g_free(data->extracted_bg_command); data->extracted_bg_command = NULL; }
+    data->in_bg_execute_block = FALSE;
     
     GList *children = gtk_container_get_children(GTK_CONTAINER(data->action_box));
     for (GList *iter = children; iter != NULL; iter = g_list_next(iter)) {
@@ -227,6 +327,11 @@ static void fetch_response(AiChatData *data, const gchar *query) {
     
     gtk_text_buffer_insert(buf, &end, "\n\n", -1);
     gtk_text_buffer_insert_with_tags_by_name(buf, &end, "VAXP AI:\n", -1, "ai_name", NULL);
+    
+    if (data->ai_response_start_mark) {
+        gtk_text_buffer_delete_mark(buf, data->ai_response_start_mark);
+    }
+    data->ai_response_start_mark = gtk_text_buffer_create_mark(buf, NULL, &end, TRUE);
     
     GtkTextMark *mark = gtk_text_buffer_create_mark(buf, NULL, &end, FALSE);
     gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(data->text_view), mark, 0, TRUE, 0, 1);
@@ -264,6 +369,9 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     if (data->type_timer > 0) g_source_remove(data->type_timer);
     ai_ctrl_cleanup(); // Clean up core backend request if any
     if (data->response) g_free(data->response);
+    if (data->extracted_command) g_free(data->extracted_command);
+    if (data->extracted_bg_command) g_free(data->extracted_bg_command);
+    if (data->last_user_query) g_free(data->last_user_query);
     g_free(data);
 }
 

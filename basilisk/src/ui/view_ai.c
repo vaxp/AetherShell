@@ -222,7 +222,7 @@ static void fetch_response(AiChatData *data, const gchar *query) {
         gtk_text_buffer_insert(buf, &end, "\n\n", -1);
     }
     
-    gtk_text_buffer_insert_with_tags_by_name(buf, &end, "أنت:\n", -1, "user_name", NULL);
+    gtk_text_buffer_insert_with_tags_by_name(buf, &end, "VAXP Client:\n", -1, "user_name", NULL);
     gtk_text_buffer_insert_with_tags_by_name(buf, &end, query, -1, "user_msg", NULL);
     
     gtk_text_buffer_insert(buf, &end, "\n\n", -1);
@@ -232,7 +232,7 @@ static void fetch_response(AiChatData *data, const gchar *query) {
     gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(data->text_view), mark, 0, TRUE, 0, 1);
     gtk_text_buffer_delete_mark(buf, mark);
     
-    gtk_label_set_text(GTK_LABEL(data->status_label), "Admiral is thinking...");
+    gtk_label_set_text(GTK_LABEL(data->status_label), "VAI is thinking...");
     gtk_spinner_start(GTK_SPINNER(data->spinner));
     
     ai_ctrl_fetch_response(query, on_ai_response_chunk, data);
@@ -322,13 +322,6 @@ void view_ai_show(const gchar *initial_query) {
     gtk_container_set_border_width(GTK_CONTAINER(content), 16);
     gtk_box_pack_start(GTK_BOX(main_box), content, TRUE, TRUE, 0);
     
-    data->entry = gtk_entry_new();
-    gtk_widget_set_name(data->entry, "ai-entry");
-    gtk_entry_set_placeholder_text(GTK_ENTRY(data->entry), "Ask Vaxp AI anything...");
-    if (initial_query) gtk_entry_set_text(GTK_ENTRY(data->entry), initial_query);
-    g_signal_connect(data->entry, "activate", G_CALLBACK(on_entry_activate), data);
-    gtk_box_pack_start(GTK_BOX(content), data->entry, FALSE, FALSE, 0);
-    
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_widget_set_name(scroll, "ai-response-scroll");
     gtk_widget_set_vexpand(scroll, TRUE);
@@ -384,6 +377,13 @@ void view_ai_show(const gchar *initial_query) {
     gtk_box_pack_start(GTK_BOX(footer), data->spinner, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(footer), data->status_label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(content), footer, FALSE, FALSE, 0);
+    
+    data->entry = gtk_entry_new();
+    gtk_widget_set_name(data->entry, "ai-entry");
+    gtk_entry_set_placeholder_text(GTK_ENTRY(data->entry), "Ask Vaxp AI anything...");
+    if (initial_query) gtk_entry_set_text(GTK_ENTRY(data->entry), initial_query);
+    g_signal_connect(data->entry, "activate", G_CALLBACK(on_entry_activate), data);
+    gtk_box_pack_start(GTK_BOX(content), data->entry, FALSE, FALSE, 0);
     
     g_signal_connect(data->window, "key-press-event", G_CALLBACK(on_ai_key_press), data);
     g_signal_connect(data->window, "destroy", G_CALLBACK(on_window_destroy), data);

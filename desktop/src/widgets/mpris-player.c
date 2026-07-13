@@ -74,18 +74,14 @@ typedef struct {
     GtkWidget *lbl_elapsed;
     GtkWidget *lbl_total;
     GtkWidget *progress_area;
-    GtkWidget *btn_shuffle;
     GtkWidget *btn_prev;
     GtkWidget *btn_play;
     GtkWidget *btn_next;
-    GtkWidget *btn_repeat;
     GtkWidget *vol_slider;
     guint     timer_id;
 
     gchar    *service;
     gboolean  is_playing;
-    gboolean  shuffle;
-    gint      loop_status;
     gint64    position_us;
     gint64    length_us;
     gdouble   mpris_volume;
@@ -189,30 +185,7 @@ static void mpris_call(const gchar *method) {
     g_object_unref(conn);
 }
 
-static void mpris_set_bool_prop(const gchar *prop, gboolean val) {
-    if (!S.service) return;
-    GError *err = NULL;
-    GDBusConnection *conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &err);
-    if (!conn) { g_clear_error(&err); return; }
-    g_dbus_connection_call_sync(conn, S.service, MPRIS_OBJ, DBUS_PROPS_IFACE,
-        "Set",
-        g_variant_new("(ssv)", MPRIS_PLAYER_IFACE, prop, g_variant_new_boolean(val)),
-        NULL, G_DBUS_CALL_FLAGS_NONE, 500, NULL, NULL);
-    g_object_unref(conn);
-}
 
-static void mpris_set_loop(const gchar *status) {
-    if (!S.service) return;
-    GError *err = NULL;
-    GDBusConnection *conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &err);
-    if (!conn) { g_clear_error(&err); return; }
-    g_dbus_connection_call_sync(conn, S.service, MPRIS_OBJ, DBUS_PROPS_IFACE,
-        "Set",
-        g_variant_new("(ssv)", MPRIS_PLAYER_IFACE, "LoopStatus",
-                      g_variant_new_string(status)),
-        NULL, G_DBUS_CALL_FLAGS_NONE, 500, NULL, NULL);
-    g_object_unref(conn);
-}
 
 static void mpris_seek_to(gdouble frac) {
     if (!S.service || S.length_us <= 0) return;
@@ -395,22 +368,7 @@ static void on_prev   (GtkButton *b, gpointer d) { (void)b; (void)d; mpris_call(
 static void on_play   (GtkButton *b, gpointer d) { (void)b; (void)d; mpris_call("PlayPause"); }
 static void on_next   (GtkButton *b, gpointer d) { (void)b; (void)d; mpris_call("Next"); }
 
-static void on_shuffle(GtkButton *b, gpointer d) {
-    (void)d;
-    S.shuffle = !S.shuffle;
-    mpris_set_bool_prop("Shuffle", S.shuffle);
-    gtk_widget_set_opacity(GTK_WIDGET(b), S.shuffle ? 1.0 : 0.40);
-}
 
-static void on_repeat(GtkButton *b, gpointer d) {
-    (void)d;
-    S.loop_status = (S.loop_status + 1) % 3;
-    const gchar *modes[] = {"None", "Track", "Playlist"};
-    const gchar *icons[] = {"🔁",   "🔂",    "🔁"};
-    mpris_set_loop(modes[S.loop_status]);
-    gtk_button_set_label(b, icons[S.loop_status]);
-    gtk_widget_set_opacity(GTK_WIDGET(b), S.loop_status > 0 ? 1.0 : 0.40);
-}
 
 /* Volume: PulseAudio preferred, MPRIS fallback */
 static void on_volume_changed(GtkRange *range, gpointer d) {
@@ -473,16 +431,10 @@ static gboolean poll_mpris(gpointer data) {
 
         if (!strcmp(key, "PlaybackStatus")) {
             S.is_playing = !strcmp(g_variant_get_string(val, NULL), "Playing");
-            gtk_button_set_label(GTK_BUTTON(S.btn_play), S.is_playing ? "⏸" : "▶");
+            GtkWidget *img = gtk_button_get_image(GTK_BUTTON(S.btn_play));
+            if (img) gtk_image_set_from_icon_name(GTK_IMAGE(img), S.is_playing ? "media-playback-pause-symbolic" : "media-playback-start-symbolic", GTK_ICON_SIZE_BUTTON);
 
-        } else if (!strcmp(key, "Shuffle")) {
-            S.shuffle = g_variant_get_boolean(val);
-            gtk_widget_set_opacity(S.btn_shuffle, S.shuffle ? 1.0 : 0.40);
 
-        } else if (!strcmp(key, "LoopStatus")) {
-            const gchar *ls = g_variant_get_string(val, NULL);
-            S.loop_status = !strcmp(ls,"Track") ? 1 : !strcmp(ls,"Playlist") ? 2 : 0;
-            gtk_widget_set_opacity(S.btn_repeat, S.loop_status > 0 ? 1.0 : 0.40);
 
         } else if (!strcmp(key, "Position")) {
             if (!S.seeking) S.position_us = g_variant_get_int64(val);
@@ -753,7 +705,7 @@ static GtkWidget *create_mpris_widget(vaxpDesktopAPI *api) {
     GtkWidget *vol_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
     gtk_box_pack_start(GTK_BOX(card), vol_row, FALSE, FALSE, 0);
 
-    GtkWidget *lbl_lo = gtk_label_new("🔇");
+    GtkWidget *lbl_lo = gtk_image_new_from_icon_name("audio-volume-muted-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(lbl_lo), "mp-vol-icon");
     gtk_box_pack_start(GTK_BOX(vol_row), lbl_lo, FALSE, FALSE, 0);
 
@@ -765,7 +717,7 @@ static GtkWidget *create_mpris_widget(vaxpDesktopAPI *api) {
     g_signal_connect(S.vol_slider, "value-changed", G_CALLBACK(on_volume_changed), NULL);
     gtk_box_pack_start(GTK_BOX(vol_row), S.vol_slider, TRUE, TRUE, 0);
 
-    GtkWidget *lbl_hi = gtk_label_new("🔊");
+    GtkWidget *lbl_hi = gtk_image_new_from_icon_name("audio-volume-high-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(lbl_hi), "mp-vol-icon");
     gtk_box_pack_start(GTK_BOX(vol_row), lbl_hi, FALSE, FALSE, 0);
 
@@ -774,38 +726,30 @@ static GtkWidget *create_mpris_widget(vaxpDesktopAPI *api) {
     gtk_widget_set_halign(ctrl_row, GTK_ALIGN_CENTER);
     gtk_box_pack_start(GTK_BOX(card), ctrl_row, FALSE, FALSE, 0);
 
-    S.btn_shuffle = gtk_button_new_with_label("⇄");
-    gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_shuffle), "mp-ctrl");
-    gtk_widget_set_opacity(S.btn_shuffle, 0.40);
-    g_signal_connect(S.btn_shuffle, "clicked", G_CALLBACK(on_shuffle), NULL);
-    gtk_box_pack_start(GTK_BOX(ctrl_row), S.btn_shuffle, FALSE, FALSE, 0);
 
-    S.btn_prev = gtk_button_new_with_label("◀◀");
+
+    S.btn_prev = gtk_button_new_from_icon_name("media-skip-backward-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_prev), "mp-ctrl");
     g_signal_connect(S.btn_prev, "clicked", G_CALLBACK(on_prev), NULL);
     gtk_box_pack_start(GTK_BOX(ctrl_row), S.btn_prev, FALSE, FALSE, 4);
 
-    S.btn_play = gtk_button_new_with_label("▶");
+    S.btn_play = gtk_button_new_from_icon_name("media-playback-start-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_play), "mp-ctrl");
     gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_play), "mp-play");
     g_signal_connect(S.btn_play, "clicked", G_CALLBACK(on_play), NULL);
     gtk_box_pack_start(GTK_BOX(ctrl_row), S.btn_play, FALSE, FALSE, 4);
 
-    S.btn_next = gtk_button_new_with_label("▶▶");
+    S.btn_next = gtk_button_new_from_icon_name("media-skip-forward-symbolic", GTK_ICON_SIZE_BUTTON);
     gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_next), "mp-ctrl");
     g_signal_connect(S.btn_next, "clicked", G_CALLBACK(on_next), NULL);
     gtk_box_pack_start(GTK_BOX(ctrl_row), S.btn_next, FALSE, FALSE, 4);
 
-    S.btn_repeat = gtk_button_new_with_label("🔁");
-    gtk_style_context_add_class(gtk_widget_get_style_context(S.btn_repeat), "mp-ctrl");
-    gtk_widget_set_opacity(S.btn_repeat, 0.40);
-    g_signal_connect(S.btn_repeat, "clicked", G_CALLBACK(on_repeat), NULL);
-    gtk_box_pack_start(GTK_BOX(ctrl_row), S.btn_repeat, FALSE, FALSE, 0);
+
 
     gtk_widget_show_all(S.root_eb);
 
     poll_mpris(NULL);
-    S.timer_id = g_timeout_add(2000, poll_mpris, NULL);
+    S.timer_id = g_timeout_add(200, poll_mpris, NULL);
 
     return S.root_eb;
 }

@@ -950,7 +950,7 @@ void view_ai_show(const gchar *initial_query) {
     data->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_widget_set_direction(GTK_WIDGET(data->window), GTK_TEXT_DIR_RTL);
     gtk_window_set_title(GTK_WINDOW(data->window), "VAXP AI");
-    gtk_window_set_default_size(GTK_WINDOW(data->window), 650, 480);
+    gtk_window_set_default_size(GTK_WINDOW(data->window), 650, 980);
     gtk_window_set_position(GTK_WINDOW(data->window), GTK_WIN_POS_CENTER);
     gtk_window_set_decorated(GTK_WINDOW(data->window), FALSE);
     g_signal_connect(data->window, "realize", G_CALLBACK(on_ai_window_realize_disable_decorations), NULL);

@@ -79,13 +79,25 @@ static int get_saved_anim(void) {
 
 /* ── Image loader (lazy, idle-based) ───────────────────────────── */
 
+static char *get_thumbnail_cache_path(const char *full_path) {
+    char *hash = g_compute_checksum_for_string(G_CHECKSUM_MD5, full_path, -1);
+    char *cache_dir = g_build_filename(g_get_user_cache_dir(), "vaxp", "thumbnails", NULL);
+    g_mkdir_with_parents(cache_dir, 0755);
+    char *cache_path = g_build_filename(cache_dir, hash, NULL);
+    char *final_path = g_strdup_printf("%s.png", cache_path);
+    g_free(hash);
+    g_free(cache_dir);
+    g_free(cache_path);
+    return final_path;
+}
+
 typedef struct { GtkWidget *flow; char *dir_path; GDir *dir; } DirLoader;
 
 static gboolean load_next_image(gpointer user_data) {
     DirLoader *loader = user_data;
     const char *fname;
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 50; i++) {
         fname = g_dir_read_name(loader->dir);
         if (!fname) {
             g_dir_close(loader->dir);
@@ -96,7 +108,21 @@ static gboolean load_next_image(gpointer user_data) {
         if (!is_image_file(fname)) continue;
 
         char *full_path = g_strdup_printf("%s/%s", loader->dir_path, fname);
-        GdkPixbuf *thumb = gdk_pixbuf_new_from_file_at_scale(full_path, 180, 110, FALSE, NULL);
+        char *cache_path = get_thumbnail_cache_path(full_path);
+        GdkPixbuf *thumb = NULL;
+        
+        if (g_file_test(cache_path, G_FILE_TEST_EXISTS)) {
+            thumb = gdk_pixbuf_new_from_file(cache_path, NULL);
+        }
+        
+        if (!thumb) {
+            thumb = gdk_pixbuf_new_from_file_at_scale(full_path, 180, 110, FALSE, NULL);
+            if (thumb) {
+                gdk_pixbuf_save(thumb, cache_path, "png", NULL, NULL);
+            }
+        }
+        g_free(cache_path);
+        
         GtkWidget *img = thumb
             ? gtk_image_new_from_pixbuf(thumb)
             : gtk_image_new_from_icon_name("image-missing", GTK_ICON_SIZE_DIALOG);
@@ -222,7 +248,9 @@ int main(int argc, char *argv[]) {
         "  background-image: none; border: none; box-shadow: none; }"
         "label { color: white; }"
         "notebook tab { color: white; }"
-        "notebook tab:checked { color: #aaddff; font-weight: bold; }",
+        "notebook tab:checked { color: #aaddff; font-weight: bold; }"
+        "button, combobox > box > button.combo { background-image: none; background-color: transparent; box-shadow: none; color: white; border: 1px solid rgba(255,255,255,0.2); }"
+        "button:hover, combobox > box > button.combo:hover { background-color: rgba(255,255,255,0.1); }",
         -1, NULL);
     gtk_style_context_add_provider_for_screen(screen, GTK_STYLE_PROVIDER(css),
                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);

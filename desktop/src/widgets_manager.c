@@ -5,7 +5,7 @@
 
 #include "widgets_manager.h"
 #include "desktop_config.h"
-#include "wallpaper.h"
+#include "desktop_window.h"
 #include "icons.h"
 #include "vaxp-widget-api.h"
 #include <dlfcn.h>

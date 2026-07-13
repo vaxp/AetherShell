@@ -7,7 +7,7 @@
 #include "desktop_config.h"
 #include "icons.h"
 #include "menu.h"
-#include "wallpaper.h"
+#include "desktop_window.h"
 #include "widgets_manager.h"
 #include <math.h>
 

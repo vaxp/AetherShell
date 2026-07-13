@@ -6,7 +6,6 @@
 #include "wallpaper.h"
 #include "desktop_config.h"
 #include "video_wallpaper.h"
-#include "widgets_manager.h"
 #include <glib/gstdio.h>
 #include <string.h>
 #include <gtk-layer-shell.h>
@@ -45,8 +44,6 @@ static void on_wallpaper_file_changed(GFileMonitor *monitor, GFile *file, GFile 
     (void)user_data;
     if (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT || event_type == G_FILE_MONITOR_EVENT_CREATED) {
         load_saved_wallpaper();
-        load_widget_theme_config();
-        reload_widgets();
     }
 }
 
@@ -509,14 +506,14 @@ void init_main_window(void) {
     GdkScreen *screen;
 
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(main_window), "vaxp Pro Desktop");
+    gtk_window_set_title(GTK_WINDOW(main_window), "vaxp Background");
     gtk_window_set_decorated(GTK_WINDOW(main_window), FALSE);
     gtk_window_set_resizable(GTK_WINDOW(main_window), FALSE);
     gtk_window_set_accept_focus(GTK_WINDOW(main_window), FALSE);
 
     if (is_wayland_session()) {
         gtk_layer_init_for_window(GTK_WINDOW(main_window));
-        gtk_layer_set_namespace(GTK_WINDOW(main_window), "desktop");
+        gtk_layer_set_namespace(GTK_WINDOW(main_window), "vaxp-bg");
         gtk_layer_set_layer(GTK_WINDOW(main_window), GTK_LAYER_SHELL_LAYER_BACKGROUND);
         gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
         gtk_layer_set_anchor(GTK_WINDOW(main_window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);

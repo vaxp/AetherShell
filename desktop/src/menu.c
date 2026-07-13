@@ -8,7 +8,7 @@
 #include "filesystem.h"
 #include "icons.h"
 #include "selection.h"
-#include "wallpaper.h"
+#include "desktop_window.h"
 #include "widgets_manager.h"
 #include <glib/gstdio.h>
 #include <string.h>

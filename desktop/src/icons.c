@@ -7,7 +7,7 @@
 #include "filesystem.h"
 #include "menu.h"
 #include "selection.h"
-#include "wallpaper.h"
+#include "desktop_window.h"
 #include "widgets_manager.h"
 #include <gio/gdesktopappinfo.h>
 #include <string.h>
